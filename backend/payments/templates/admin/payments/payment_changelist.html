@@ -1,0 +1,21 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+  <li><a href="{{ report_url }}" class="addlink">📊 Отчёт и графики</a></li>
+  <li><a href="{{ excel_url }}" class="addlink">📥 Экспорт в Excel</a></li>
+  {{ block.super }}
+{% endblock %}
+
+{% block result_list %}
+  <div class="module" style="margin-bottom:12px;padding:12px 14px;line-height:1.9;">
+    <div style="font-size:14px;">
+      💰 <b>Сегодня:</b> {{ today_sum }} ({{ today_cnt }} шт.)
+      &nbsp;·&nbsp; <b>7 дней:</b> {{ week_sum }} ({{ week_cnt }} шт.)
+      &nbsp;·&nbsp; <b>30 дней:</b> {{ month_sum }} ({{ month_cnt }} шт.)
+    </div>
+    <div style="font-size:12px;opacity:.8;margin-top:4px;">
+      За 30 дней: 🤖 OCR — {{ ocr_cnt }} · 👤 админ — {{ admin_cnt }}
+    </div>
+  </div>
+  {{ block.super }}
+{% endblock %}

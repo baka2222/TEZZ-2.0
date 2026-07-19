@@ -9,44 +9,18 @@ from aiogram.types import (
     InputMediaPhoto, ReplyKeyboardRemove
 )
 
-ADMINS = [5837210969, 7023602871, 7004564666, 6877021509, 7679148716]  # Замените на реальные Telegram ID администраторов
+from bot.channels import (
+    CHANNELS,
+    ADMINS,
+    SLUG_TO_CATEGORY,
+    CATEGORY_TO_SLUG,
+    get_category_label,
+    get_status_keys,
+    get_status_label,
+)
 
-# --- Каналы (скопированы из основного файла) ---
-CHANNELS = {
-    "Веломаркет": {
-        "id": -1002615944125,
-        "link": "https://t.me/teztezfg",
-    },
-    "Бьютимаркет": {
-        "id": -1002762051372,
-        "link": "https://t.me/tezbueaty/4",
-    },
-    "Техномаркет": {
-        "id": -1002897679802,
-        "link": "https://t.me/teztechno/2",
-    },
-    "Автомотомаркет": {
-        "id": -1002549461746,
-        "link": "https://t.me/tezautomoto/2",
-    },
-    "Недвижимость": {
-        "id": -1002711157981,
-        "link": "https://t.me/tezhousing/2",
-    },
-    "Работа": {
-        "id": -1002788239459,
-        "link": "https://t.me/tezzjob/3",
-    }
-}
+ADMIN_LANG = 'ru'
 
-# --- Вспомогательные функции slugify ---
-def slugify(name: str) -> str:
-    return ''.join(ch if ch.isalnum() else '_' for ch in name)
-
-SLUG_TO_CATEGORY = { slugify(k): k for k in CHANNELS.keys() }
-CATEGORY_TO_SLUG = { v:k for k,v in SLUG_TO_CATEGORY.items() }
-
-# --- Создаём роутер ---
 admin_sell_router = Router()
 
 # --- Фильтр на админов (можно использовать в каждом хендлере) ---
@@ -73,7 +47,8 @@ async def admin_start_sell(message: types.Message, state: FSMContext):
         return
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=name, callback_data=f"adminsell_cat_{CATEGORY_TO_SLUG[name]}")]
+        [InlineKeyboardButton(text=get_category_label(name, ADMIN_LANG),
+                              callback_data=f"adminsell_cat_{CATEGORY_TO_SLUG[name]}")]
         for name in CHANNELS.keys()
     ])
     await message.answer(
@@ -101,30 +76,13 @@ async def admin_choose_category(callback: types.CallbackQuery, state: FSMContext
 
     await state.update_data(category=category, category_slug=slug)
 
-    # Клавиатура статусов (аналогично обычному роуту)
-    status_kb = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="💰 Продать", callback_data="adminsell_status_sell"),
-        InlineKeyboardButton(text="🔄 Обмен", callback_data="adminsell_status_exchange"),
-        InlineKeyboardButton(text="🔍 Ищу", callback_data="adminsell_status_search"),
-    ]])
-
-    if category == 'Недвижимость':
-        status_kb = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="💰 Продать", callback_data="adminsell_status_sell"),
-            InlineKeyboardButton(text="🔑 Сдаю", callback_data="adminsell_status_hand"),
-            InlineKeyboardButton(text="🔍 Ищу", callback_data="adminsell_status_search"),
-        ]])
-    elif category == 'Работа':
-        status_kb = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="👨‍💼 Резюме", callback_data="adminsell_status_resume"),
-            InlineKeyboardButton(text="💼 Вакансия", callback_data="adminsell_status_vacancy"),
-        ]])
-    elif category == 'Бьютимаркет':
-        status_kb = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="💰 Продать", callback_data="adminsell_status_sell"),
-            InlineKeyboardButton(text="👀 Подаюсь", callback_data="adminsell_status_poda"),
-            InlineKeyboardButton(text="🔍 Ищу", callback_data="adminsell_status_search"),
-        ]])
+    # Клавиатура статусов собирается из channels.py (типы объявления канала).
+    status_row = [
+        InlineKeyboardButton(text=get_status_label(category, key, ADMIN_LANG),
+                             callback_data=f"adminsell_status_{key}")
+        for key in get_status_keys(category)
+    ]
+    status_kb = InlineKeyboardMarkup(inline_keyboard=[status_row])
 
     await callback.message.edit_text(
         f"🗂 Категория: <b>{category}</b>\n\n📌 Выберите тип объявления:",
@@ -140,16 +98,10 @@ async def admin_choose_status(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer("⛔ Доступ запрещён.", show_alert=True)
         return
 
-    status_map = {
-        "adminsell_status_sell": "💰 Продажа",
-        "adminsell_status_exchange": "🔄 Обмен",
-        "adminsell_status_search": "🔍 Поиск",
-        "adminsell_status_hand": "🔑 Сдаю",
-        "adminsell_status_resume": "👨‍💼 Резюме",
-        "adminsell_status_vacancy": "💼 Вакансия",
-        "adminsell_status_poda": "👀 Подаюсь"
-    }
-    status = status_map.get(callback.data, "💰 Продажа")
+    data = await state.get_data()
+    category = data.get('category')
+    status_key = callback.data.removeprefix('adminsell_status_')
+    status = get_status_label(category, status_key, ADMIN_LANG)
     await state.update_data(status=status)
 
     await callback.message.edit_text(

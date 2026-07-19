@@ -1,0 +1,41 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div id="content-main">
+
+  <div class="module" style="margin-bottom:16px;padding:14px;">
+    <h2 style="margin-top:0;">💰 Сводка</h2>
+    <table style="width:100%;max-width:640px;">
+      <tr><th style="text-align:left;">Сегодня</th>
+          <td><b>{{ summary.today_sum }}</b> ({{ summary.today_cnt }} шт.)</td></tr>
+      <tr><th style="text-align:left;">За 7 дней</th>
+          <td><b>{{ summary.week_sum }}</b> ({{ summary.week_cnt }} шт.)</td></tr>
+      <tr><th style="text-align:left;">За 30 дней</th>
+          <td><b>{{ summary.month_sum }}</b> ({{ summary.month_cnt }} шт.)</td></tr>
+      <tr><th style="text-align:left;">Способ приёма (30 дн.)</th>
+          <td>🤖 OCR — {{ summary.ocr_cnt }} · 👤 админ — {{ summary.admin_cnt }}</td></tr>
+    </table>
+  </div>
+
+  <div class="module" style="margin-bottom:16px;padding:14px;">
+    <h2 style="margin-top:0;">📥 Экспорт в Excel за период</h2>
+    <form action="{{ excel_url }}" method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+      <label>С даты<br><input type="date" name="from"></label>
+      <label>По дату<br><input type="date" name="to"></label>
+      <button type="submit" class="button">Скачать .xlsx</button>
+    </form>
+    <p style="opacity:.7;font-size:12px;">Оставьте поля пустыми, чтобы выгрузить все платежи.</p>
+  </div>
+
+  <div class="module" style="margin-bottom:16px;padding:14px;">
+    <h2 style="margin-top:0;">📈 За неделю</h2>
+    <img src="{{ chart_week }}" style="max-width:100%;height:auto;" alt="График за неделю">
+  </div>
+
+  <div class="module" style="padding:14px;">
+    <h2 style="margin-top:0;">📈 За месяц</h2>
+    <img src="{{ chart_month }}" style="max-width:100%;height:auto;" alt="График за месяц">
+  </div>
+
+</div>
+{% endblock %}

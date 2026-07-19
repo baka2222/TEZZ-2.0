@@ -5,6 +5,53 @@ from django.utils.functional import cached_property
 from math import radians, sin, cos, sqrt, atan2
 
 
+class ClientAd(models.Model):
+    CHOISES_STATUS = [
+        ('active', 'Активный'),
+        ('inactive', 'Неактивный'),
+    ]
+
+    client = models.ForeignKey(
+        'Client',
+        verbose_name='Владелец объявления',
+        on_delete=models.CASCADE,
+        related_name='ads'
+    )
+    category_slug = models.CharField("Категория объявления", max_length=100)
+    subcategory_slug = models.CharField("Подкатегория объявления", max_length=100)
+    name = models.CharField("Название объявления", max_length=200)
+    description = models.TextField("Описание", blank=True, default='')
+    status_label = models.CharField(
+        "Тип объявления (подпись)", max_length=100, blank=True, default=''
+    )
+    show_phone = models.BooleanField("Показывать телефон", default=False)
+    price = models.IntegerField(
+        "Цена",
+        validators=[MinValueValidator(0)]
+    )
+    currency = models.CharField("Валюта", max_length=10, default='KGS')
+
+    channel_id = models.BigIntegerField("ID канала")
+    message_id = models.BigIntegerField("ID сообщения")
+    full_message_ids = models.JSONField("ID сообщений в канале", default=list, blank=True)
+
+    status = models.CharField(
+        "Статус объявления",
+        max_length=20,
+        choices=CHOISES_STATUS,
+        default='active'
+    )
+    created_at = models.DateTimeField("Дата создания", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Объявление клиента"
+        verbose_name_plural = "Объявления клиентов"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.name} — {self.price} KGS ({self.get_status_display()})"
+
+
 class Client(models.Model):
     LANGS = [
         ('ru', 'Русский'),
@@ -17,8 +64,15 @@ class Client(models.Model):
     name = models.CharField("Имя клиента", max_length=200, blank=True, null=True)
     phone = models.CharField("Номер телефона", max_length=30, blank=True, null=True)
     username = models.CharField("Юзернейм", max_length=150, blank=True, null=True)
+    balance = models.DecimalField(
+        verbose_name='Баланс (сом / тезики)',
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00')
+    )
     language = models.CharField("Язык", max_length=2, choices=LANGS, default='ru')
     is_banned = models.BooleanField("Забанен", default=False)
+
     next_subscription_disable = models.DateTimeField(
         "Когда кончается безлимит", null=True, blank=True
     )
@@ -41,6 +95,13 @@ class Client(models.Model):
         "Когда можно будет снова публиковать JOB", null=True, blank=True
     )
 
+    favorites = models.ManyToManyField(
+        ClientAd,
+        verbose_name="Избранные объявления",
+        related_name="favorited_by",
+        blank=True,
+    )
+
     created_at = models.DateTimeField("Дата создания", auto_now_add=True)
     updated_at = models.DateTimeField("Дата обновления", auto_now=True)
 
@@ -51,328 +112,34 @@ class Client(models.Model):
 
     def __str__(self):
         return self.name or self.tg_code
+    
 
-
-class Category(models.Model):
-    name = models.CharField("Название категории", max_length=100, unique=True)
-    name_en = models.CharField("Название категории (англ)", max_length=100)
-    name_kg = models.CharField("Название категории (кырг)", max_length=100)
-    name_cn = models.CharField("Название категории (кит)", max_length=100)
-    description = models.TextField("Описание категории", blank=True, null=True)
-
-    class Meta:
-        verbose_name = "Категория магазина"
-        verbose_name_plural = "Категории магазинов"
-        ordering = ["name"]
-
-    def __str__(self):
-        return self.name
-
-
-class Shop(models.Model):
-    owner = models.ForeignKey(
+class TeziksTransaction(models.Model):
+    sender = models.ForeignKey(
         Client,
-        verbose_name="Владелец",
-        on_delete=models.CASCADE,
-        related_name='shops'
-    )
-    category = models.ForeignKey(
-        Category,
-        verbose_name="Категория магазина",
+        verbose_name="Отправитель",
         on_delete=models.SET_NULL,
         null=True,
-        related_name='shops'
+        related_name='sent_transactions'
     )
-    point_a_lat = models.FloatField("Широта точки А")
-    point_a_lng = models.FloatField("Долгота точки А")
-    name = models.CharField("Название магазина", max_length=200)
-    address = models.CharField("Адрес", max_length=300, blank=True, null=True)
-    description = models.TextField("Описание", blank=True, null=True)
-    description_en = models.TextField("Описание (англ)", blank=True, null=True)
-    description_kg = models.TextField("Описание (кырг)", blank=True, null=True)
-    description_cn = models.TextField("Описание (кит)", blank=True, null=True)
+    receiver = models.ForeignKey(
+        Client,
+        verbose_name="Получатель",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='received_transactions'
+    )
+    amount = models.DecimalField(
+        verbose_name="Сумма",
+        max_digits=10,
+        decimal_places=2
+    )
     created_at = models.DateTimeField("Дата создания", auto_now_add=True)
 
     class Meta:
-        verbose_name = "Магазин"
-        verbose_name_plural = "Магазины"
-        ordering = ["name"]
-
-    def __str__(self):
-        return self.name
-
-
-class Product(models.Model):
-    shop = models.ForeignKey(
-        Shop,
-        verbose_name="Магазин",
-        on_delete=models.CASCADE,
-        related_name='products'
-    )
-    name = models.CharField("Название товара", max_length=200)
-    name_en = models.CharField("Название товара (англ)", max_length=200, blank=True, null=True)
-    name_kg = models.CharField("Название товара (кырг)", max_length=200, blank=True, null=True)
-    name_cn = models.CharField("Название товара (кит)", max_length=200, blank=True, null=True)
-    price = models.IntegerField(
-        "Цена (KGS)",
-        validators=[MinValueValidator(0)]
-    )
-    description = models.TextField("Описание товара", blank=True, null=True)
-    description_en = models.TextField("Описание товара (англ)", blank=True, null=True)
-    description_kg = models.TextField("Описание товара (кырг)", blank=True, null=True)
-    description_cn = models.TextField("Описание товара (кит)", blank=True, null=True)
-    created_at = models.DateTimeField("Дата добавления", auto_now_add=True)
-
-    class Meta:
-        verbose_name = "Товар"
-        verbose_name_plural = "Товары"
-        ordering = ["name"]
-
-    def __str__(self):
-        return f"{self.name} ({self.shop.name}) — {self.price}KGS"
-
-
-class ProductImage(models.Model):
-    product = models.ForeignKey(
-        Product,
-        verbose_name="Товар",
-        on_delete=models.CASCADE,
-        related_name='images'
-    )
-    image_url = models.ImageField(
-        "Изображения",
-        upload_to='product_images/',
-        blank=True,
-        null=True
-    )
-
-    class Meta:
-        verbose_name = "Изображение товара"
-        verbose_name_plural = "Изображения товаров"
-
-    def __str__(self):
-        return f"Изображение для {self.product.name}"
-
-
-class Service(models.Model):
-    shop = models.ForeignKey(
-        Shop,
-        verbose_name="Магазин",
-        on_delete=models.CASCADE,
-        related_name='services'
-    )
-    name = models.CharField("Название услуги", max_length=200)
-    name_en = models.CharField("Название услуги (англ)", max_length=200, blank=True, null=True)
-    name_kg = models.CharField("Название услуги (кырг)", max_length=200, blank=True, null=True)
-    name_cn = models.CharField("Название услуги (кит)", max_length=200, blank=True, null=True)
-    price = models.IntegerField(
-        "Стоимость (KGS)",
-        validators=[MinValueValidator(0)]
-    )
-    description = models.TextField("Описание услуги", blank=True, null=True)
-    description_en = models.TextField("Описание услуги (англ)", blank=True, null=True)
-    description_kg = models.TextField("Описание услуги (кырг)", blank=True, null=True)
-    description_cn = models.TextField("Описание услуги (кит)", blank=True, null=True)
-    created_at = models.DateTimeField("Дата добавления", auto_now_add=True)
-
-    class Meta:
-        verbose_name = "Услуга"
-        verbose_name_plural = "Услуги"
-        ordering = ["name"]
-
-    def __str__(self):
-        return f"{self.name} ({self.shop.name}) — {self.price}KGS"
-
-
-class Order(models.Model):
-    shop = models.ForeignKey(
-        Shop,
-        verbose_name="Магазин",
-        on_delete=models.CASCADE,
-        related_name='orders'
-    )
-    client = models.ForeignKey(
-        Client,
-        verbose_name="Клиент",
-        on_delete=models.CASCADE,
-        related_name='orders'
-    )
-    total_price = models.IntegerField("Итоговая сумма (KGS)", default=0)
-    created_at = models.DateTimeField("Дата заказа", auto_now_add=True)
-
-    class Meta:
-        verbose_name = "Заказ"
-        verbose_name_plural = "Заказы"
+        verbose_name = "Транзакция тезиков"
+        verbose_name_plural = "Транзакции тезиков"
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"Заказ #{self.id} — {self.total_price}KGS"
-
-
-class OrderItem(models.Model):
-    order = models.ForeignKey(
-        Order,
-        verbose_name="Заказ",
-        on_delete=models.CASCADE,
-        related_name='items'
-    )
-    product = models.ForeignKey(
-        Product,
-        verbose_name="Товар",
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True
-    )
-    service = models.ForeignKey(
-        Service,
-        verbose_name="Услуга",
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True
-    )
-    quantity = models.PositiveIntegerField("Количество", default=1)
-
-    class Meta:
-        unique_together = ('order', 'product')
-        verbose_name = "Позиция заказа"
-        verbose_name_plural = "Позиции заказа"
-        ordering = ["order"]
-
-    def __str__(self):
-        if self.product:
-            return f"{self.product.name} ×{self.quantity}"
-        if self.service:
-            return f"{self.service.name} ×{self.quantity}"
-        return "Пустая позиция"
-
-
-class PricingRule(models.Model):
-    """Правило ценообразования по дистанции"""
-    name = models.CharField("Название правила", max_length=100, unique=True)
-    min_distance = models.FloatField("Минимальная дистанция (км)", default=0,
-                                     help_text="Включительно")
-    max_distance = models.FloatField("Максимальная дистанция (км)", default=0,
-                                     help_text="Исключительно; 0 = без лимита")
-    base_price = models.DecimalField("Базовая цена (сом)", max_digits=8, decimal_places=2, default=0)
-    per_km_price = models.DecimalField("Цена за км (сом)", max_digits=8, decimal_places=2, default=0)
-    multiplier = models.DecimalField("Множитель", max_digits=4, decimal_places=2, default=1,
-                                     help_text="Дополнительная наценка")
-
-    class Meta:
-        ordering = ['min_distance']
-        verbose_name = 'Правило ценообразования'
-        verbose_name_plural = 'Правила ценообразования'
-
-    def applies(self, distance_km: float) -> bool:
-        upper = self.max_distance if self.max_distance > 0 else float('inf')
-        return self.min_distance <= distance_km < upper
-
-
-class TimeSurcharge(models.Model):
-    """Наценка по времени суток"""
-    name = models.CharField("Название наценки", max_length=100, unique=True)
-    start_time = models.TimeField("Начало периода")
-    end_time = models.TimeField("Конец периода")
-    multiplier = models.DecimalField("Множитель", max_digits=4, decimal_places=2, default=1)
-
-    class Meta:
-        verbose_name = 'Наценка по времени'
-        verbose_name_plural = 'Наценки по времени'
-
-    def applies(self, check_time) -> bool:
-        if self.start_time < self.end_time:
-            return self.start_time <= check_time < self.end_time
-        return check_time >= self.start_time or check_time < self.end_time
-
-
-class CourierOrder(models.Model):
-    """Модель чистой доставки (не привязана к магазину)"""
-    client = models.ForeignKey(
-        Client, verbose_name="Клиент", on_delete=models.CASCADE,
-        related_name='delivery_orders'
-    )
-    courier = models.ForeignKey(
-        Client, verbose_name="Курьер", on_delete=models.SET_NULL,
-        null=True, blank=True, related_name='assigned_deliveries'
-    )
-    point_a_lat = models.FloatField("Широта точки А")
-    point_a_lng = models.FloatField("Долгота точки А")
-    point_b_lat = models.FloatField("Широта точки Б")
-    point_b_lng = models.FloatField("Долгота точки Б")
-    STATUS_CHOICES = [
-        ('new', 'Новый'),
-        ('assigned', 'Назначен'),
-        ('to_a', 'В пути до точки А'),
-        ('to_b', 'В пути до точки Б'),
-        ('arrived', 'Приехал'),
-        ('completed', 'Завершён'),
-    ]
-    status = models.CharField(
-        "Статус заказа",
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default='new',
-    )
-    comment = models.TextField("Комментарий", blank=True)
-
-    distance_km = models.DecimalField(
-        "Расстояние (км)", max_digits=6, decimal_places=2,
-        validators=[MinValueValidator(0)], null=True, blank=True
-    )
-    price = models.DecimalField(
-        "Цена (сом)", max_digits=8, decimal_places=2,
-        validators=[MinValueValidator(0)], null=True, blank=True
-    )
-
-    created_at = models.DateTimeField("Дата создания", auto_now_add=True)
-    updated_at = models.DateTimeField("Дата обновления", auto_now=True)
-
-    class Meta:
-        verbose_name = "Курьерский заказ"
-        verbose_name_plural = "Курьерские заказы"
-        ordering = ['-created_at']
-
-    def __str__(self):
-        return f"Доставка #{self.id} от {self.client}"
-
-    def save(self, *args, **kwargs):
-        # Рассчитать расстояние и цену при сохранении
-        # Формула гаверсинуса
-        R = 6371.0
-        lat1, lon1, lat2, lon2 = map(radians, [
-            self.point_a_lat, self.point_a_lng,
-            self.point_b_lat, self.point_b_lng
-        ])
-        dlat = lat2 - lat1
-        dlon = lon2 - lon1
-        a = sin(dlat/2)**2 + cos(lat1)*cos(lat2)*sin(dlon/2)**2
-        c = 2 * atan2(sqrt(a), sqrt(1-a))
-        dist = round(R * c, 2)
-        self.distance_km = dist
-
-        # Поиск правила
-        rule = None
-        for r in PricingRule.objects.all():
-            if r.applies(dist):
-                rule = r
-                break
-        if not rule and PricingRule.objects.exists():
-            rule = PricingRule.objects.last()
-        if rule:
-            price = float(rule.base_price) + dist * float(rule.per_km_price)
-            price *= float(rule.multiplier)
-            # наценка по времени
-            now = self.created_at.time()
-            for ts in TimeSurcharge.objects.all():
-                if ts.applies(now):
-                    price *= float(ts.multiplier)
-            self.price = round(price, 2)
-
-        super().save(*args, **kwargs)
-
-    def get_2gis_link(self) -> str:
-        return (
-            f"https://2gis.kg/routeSearch/geo/"
-            f"{self.point_a_lat},{self.point_a_lng}/"
-            f"{self.point_b_lat},{self.point_b_lng}"
-        )
+        return f"{self.sender} → {self.receiver}: {self.amount}"

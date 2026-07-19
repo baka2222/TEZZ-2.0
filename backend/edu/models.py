@@ -14,7 +14,7 @@ class User(AbstractUser):
     discord = models.CharField(max_length=100, blank=True, null=True)
 
     def save(self, *args, **kwargs):
-        if self.pk is None or not self.password.startswith('pbkdf2_'):
+        if self.password and not self.password.startswith('pbkdf2_'):
             self.set_password(self.password)
         super().save(*args, **kwargs)
 

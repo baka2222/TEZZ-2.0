@@ -1,7 +1,7 @@
 from django.apps import AppConfig
 
 
-class ClientConfig(AppConfig):
+class FaqConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'client'
-    verbose_name = 'TEZZ Market'
+    verbose_name = 'TEZZ FAQ'
+    name = 'faq'

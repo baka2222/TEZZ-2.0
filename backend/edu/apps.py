@@ -3,6 +3,7 @@ from django.apps import AppConfig
 class EduConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'edu'
+    verbose_name = 'TEZZ Education'
 
     def ready(self):
         from django.db.models.signals import post_save

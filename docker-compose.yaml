@@ -29,6 +29,7 @@ services:
       - static_volume:/app/backend/staticfiles
     environment:
       - DJANGO_SETTINGS_MODULE=backend.settings
+      - DJANGO_SECURE_SSL_REDIRECT=${DJANGO_SECURE_SSL_REDIRECT:-True}
       - DB_HOST=db
       - DB_NAME=teztez
       - DB_USER=teztez

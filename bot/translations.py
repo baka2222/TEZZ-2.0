@@ -5,13 +5,55 @@ from functools import lru_cache
 
 
 TRANSLATIONS = {
+    'up_ad_button': {
+        'ru': '⬆️ Поднять объявление',
+        'kg': '⬆️ Жарыяны көтөрүү',
+        'en': '⬆️ Promote ad',
+        'cn': '⬆️ 提升广告',
+    },
+    'up_ad_low_balance': {
+        'ru': '❌ Недостаточно средств для поднятия объявления. Требуется {price} сом. Ваш баланс {balance} сом.',
+        'kg': '❌ Жарыяны көтөрүү үчүн жетишсиз каражат. {price} сом талап кылынат. Сиздин балансыңыз {balance} сом.',
+        'en': '❌ Insufficient funds to promote the ad. {price} KGS required. Your balance is {balance} KGS.',
+        'cn': '❌ 提升广告所需资金不足。需要 {price} 索姆。您的余额是 {balance} 索姆。',
+    },
+    'up_ad_confirm': {
+        'ru': '❌ Вы уверены, что хотите поднять объявление? Это будет стоить {price} сом. Ваш баланс {balance} сом.',
+        'kg': '❌ Жарыяны көтөрүүнү чын эле жасамагыңыз керек пиши? Бу {price} сомга айланат. Сиздин балансыңыз {balance} сом.',
+        'en': '❌ Are you sure you want to promote the ad? This will cost {price} KGS. Your balance is {balance} KGS.',
+        'cn': '❌ 你确定要推广广告吗？这将花费 {price} 索姆。你的余额是 {balance} 索姆。',
+    },
+    'up_ad_success': {
+        'ru': '✅ Объявление успешно поднято!',
+        'kg': '✅ Жарыя ийгиликтүү көтөрүлдү!',
+        'en': '✅ The ad has been successfully promoted!',
+        'cn': '✅ 广告已成功推广！',
+    },
+    'up_ad_confirm_free': {
+        'ru': '⬆️ Поднять объявление наверх канала? Кулдаун не активен, это бесплатно.',
+        'kg': '⬆️ Жарыяны каналдын башына көтөрөбүзбү? Кулдаун активдүү эмес, бул акысыз.',
+        'en': '⬆️ Move the ad to the top of the channel? Cooldown is not active, this is free.',
+        'cn': '⬆️ 将广告移到频道顶部？冷却时间未激活，此操作免费。',
+    },
 
     # ---------- Общие / Регистрация / Навигация (commands) ----------
+    'remembered_client': {
+        'ru': '👋🏻 О, я тебя помню. То, что ты вернулся - правильное решение. Вместе веселее!\n\nСтарое дорбое меню можешь открыть тут 👇🏻',
+        'kg': '👋🏻 О, мен сени эстейм. Кайтып келгендигиң туура чечим. Бирге көңүлдүү!\n\nЭски жакшы менюну бул жерден ачсаң болот 👇🏻',
+        'en': '👋🏻 Oh, I remember you. Coming back is the right decision. It’s more fun together!\n\nYou can open the old good menu here 👇🏻',
+        'cn': '👋🏻 哦，我记得你。回来是正确的决定。一起更有趣！\n\n你可以在这里打开旧的好菜单 👇🏻',
+    },
+    'profile_inline_button': {
+        'ru': '👤 Настройки профиля',
+        'kg': '👤 Профильдик параметрлери',
+        'en': '👤 Profile Settings',
+        'cn': '👤 个人资料设置',
+    },
     'choose_language': {
-        'ru': '🇷🇺 Выберите язык',
-        'kg': '🇰🇬 Тилди тандаңыз',
-        'en': '🇬🇧 Choose language',
-        'cn': '🇨🇳 选择语言',
+        'ru': '🌐 Выберите язык',
+        'kg': '🌐 Тилди тандаңыз',
+        'en': '🌐 Choose language',
+        'cn': '🌐 选择语言',
     },
     'welcome': {
         'ru': 'Добро пожаловать в TEZZ Market!',
@@ -123,38 +165,10 @@ TRANSLATIONS = {
         'cn': '请以文本消息形式发送描述。',
     },
     'channels_list': {
-        'ru': (
-            '<b>🚲 Веломаркет:</b> <a href="https://t.me/teztezfg">велосипеды, аксессуары</a>\n\n'
-            '<b>💄 Бьюти маркет:</b> <a href="https://t.me/tezbueaty">косметика, уход</a>\n\n'
-            '<b>🏍 Автомотомаркет:</b> <a href="https://t.me/tezautomoto">мопеды, мото, авто</a>\n\n'
-            '<b>💻 Техномаркет:</b> <a href="https://t.me/teztechno">электроника, гаджеты</a>\n\n'
-            '<b>🏠 Рынок недвижимости:</b> <a href="https://t.me/tezhousing">жильё, коммерция</a>\n\n'
-            '<b>💼 Вакансии / Резюме:</b> <a href="https://t.me/tezzjob">работа, подработка</a>'
-        ),
-        'kg': (
-            '<b>🚲 Веломаркет:</b> <a href="https://t.me/teztezfg">велосипеддер, аксессуарлар</a>\n\n'
-            '<b>💄 Бьюти маркет:</b> <a href="https://t.me/tezbueaty">косметика, кам көрүү</a>\n\n'
-            '<b>🏍 Автомотомаркет:</b> <a href="https://t.me/tezautomoto">мопеддер, мото, авто</a>\n\n'
-            '<b>💻 Техномаркет:</b> <a href="https://t.me/teztechno">электроника, гаджеттер</a>\n\n'
-            '<b>🏠 Недвижимость рыногу:</b> <a href="https://t.me/tezhousing">турак-жай, коммерция</a>\n\n'
-            '<b>💼 Вакансиялар / Резюмелер:</b> <a href="https://t.me/tezzjob">иш, кошумча иш</a>'
-        ),
-        'en': (
-            '<b>🚲 Velomarket:</b> <a href="https://t.me/teztezfg">bikes, accessories</a>\n\n'
-            '<b>💄 Beauty market:</b> <a href="https://t.me/tezbueaty">cosmetics, care</a>\n\n'
-            '<b>🏍 Automoto market:</b> <a href="https://t.me/tezautomoto">mopeds, motorcycles, cars</a>\n\n'
-            '<b>💻 Tech market:</b> <a href="https://t.me/teztechno">electronics, gadgets</a>\n\n'
-            '<b>🏠 Real estate:</b> <a href="https://t.me/tezhousing">housing, commercial</a>\n\n'
-            '<b>💼 Jobs / Resumes:</b> <a href="https://t.me/tezzjob">work, part-time</a>'
-        ),
-        'cn': (
-            '<b>🚲 自行车市场：</b> <a href="https://t.me/teztezfg">自行车，配件</a>\n\n'
-            '<b>💄 美容市场：</b> <a href="https://t.me/tezbueaty">化妆品，护理</a>\n\n'
-            '<b>🏍 汽车摩托车市场：</b> <a href="https://t.me/tezautomoto">轻便摩托车，摩托车，汽车</a>\n\n'
-            '<b>💻 科技市场：</b> <a href="https://t.me/teztechno">电子产品，小工具</a>\n\n'
-            '<b>🏠 房地产市场：</b> <a href="https://t.me/tezhousing">住宅，商业</a>\n\n'
-            '<b>💼 工作 / 简历：</b> <a href="https://t.me/tezzjob">工作，兼职</a>'
-        ),
+        'ru': '🛒 А вот и наши маркеты:',
+        'kg': '🛒 Бул биздин маркеттер:',
+        'en': '🛒 Here are our markets:',
+        'cn': '🛒 这是我们的市场：',
     },
     'menu_change_lang': {
         'ru': '🌐 Сменить язык',
@@ -204,10 +218,10 @@ TRANSLATIONS = {
         'cn': '前进',
     },
     'back': {
-        'ru': 'Назад',
-        'kg': 'Артка',
-        'en': 'Back',
-        'cn': '返回',
+        'ru': '◀️ Назад',
+        'kg': '◀️ Артка',
+        'en': '◀️ Back',
+        'cn': '◀️ 返回',
     },
 
     # ---------- Для уведомлений владельцу магазина ----------
@@ -374,10 +388,22 @@ TRANSLATIONS = {
         'cn': '📝 <b>详细描述广告</b>\n\n<i>可以注明：\n• 状况/经验/要求\n• 特点或条件\n• 区域/配置\n• 任何重要信息</i>',
     },
     'ad_price': {
-        'ru': '💵 <b>Укажите цену в KGS:</b>\n\n<i>Введите только число, например: 2500</i>',
-        'kg': '💵 <b>Бааны KGS менен көрсөтүңүз:</b>\n\n<i>Сан гана жазыңыз, мисалы: 2500</i>',
-        'en': '💵 <b>Enter the price in KGS:</b>\n\n<i>Enter only a number, e.g.: 2500</i>',
-        'cn': '💵 <b>请输入价格（KGS）：</b>\n\n<i>只输入数字，例如：2500</i>',
+        'ru': '💵 <b>Укажите цену:</b>\n\n<i>Введите только число, например: 2500</i>\n<i>Или нажмите «💬 Договорная», если цена обсуждается.</i>',
+        'kg': '💵 <b>Бааны көрсөтүңүз:</b>\n\n<i>Сан гана жазыңыз, мисалы: 2500</i>\n<i>Же баа келишим боюнча болсо «💬 Келишим баада» баскычын басыңыз.</i>',
+        'en': '💵 <b>Enter the price:</b>\n\n<i>Enter only a number, e.g.: 2500</i>\n<i>Or tap «💬 Negotiable» if the price is negotiable.</i>',
+        'cn': '💵 <b>请输入价格：</b>\n\n<i>只输入数字，例如：2500</i>\n<i>如价格面议，请点击「💬 面议」。</i>',
+    },
+    'price_negotiable': {
+        'ru': 'Договорная',
+        'kg': 'Келишим баада',
+        'en': 'Negotiable',
+        'cn': '面议',
+    },
+    'btn_negotiable': {
+        'ru': '💬 Договорная',
+        'kg': '💬 Келишим баада',
+        'en': '💬 Negotiable',
+        'cn': '💬 面议',
     },
     'price_must_be_number': {
         'ru': '❗️ Цена должна быть числом. Введите только число, например: 3500',
@@ -440,10 +466,10 @@ TRANSLATIONS = {
         'cn': '隐藏',
     },
     'contact': {
-        'ru': 'Связаться',
-        'kg': 'Байланышуу',
-        'en': 'Contact',
-        'cn': '联系',
+        'ru': 'Написать продавцу',
+        'kg': 'Сатууга байланышуу',
+        'en': 'Contact seller',
+        'cn': '联系卖家',
     },
     'ad_preview': {
         'ru': '📝 Предпросмотр объявления. Всё верно?',
@@ -464,10 +490,10 @@ TRANSLATIONS = {
         'cn': '❌ 取消',
     },
     'ad_published': {
-        'ru': '✅ <b>Объявление опубликовано!</b>\nЭто сообщение можете закрепить в лс бота, чтобы не потерять свое объявление.',
-        'kg': '✅ <b>Жарыя жарыяланды!</b>\nБул билдирүүнү боттун жеке чатында сактап коюңуз, ошондо жарыяңызды жоготпойсуз.',
-        'en': '✅ <b>Ad published!</b>\nYou can pin this message in the bot’s private chat to not lose your ad.',
-        'cn': '✅ <b>广告已发布！</b>\n您可以将此消息固定在机器人的私聊中，以免丢失您的广告。',
+        'ru': '✅ <b>Объявление опубликовано!</b>\nВсе ваши обьявления можете найти в профиле.',
+        'kg': '✅ <b>Жарыя жарыяланды!</b>\nБаардык жарнамаларыңызды профилиңизден таба аласыз.',
+        'en': '✅ <b>Ad published!</b>\nAll your ads can be found in your profile.',
+        'cn': '✅ <b>广告已发布！</b>\n您可以在个人资料中找到所有广告。',
     },
     'see_in_channel': {
         'ru': '👁️ Посмотреть в канале',
@@ -790,7 +816,7 @@ TRANSLATIONS = {
         'cn': '距离',
     },
     'price': {
-        'ru': 'Стоимость',
+        'ru': 'Цена',
         'kg': 'Баасы',
         'en': 'Price',
         'cn': '价格',
@@ -1680,10 +1706,10 @@ TRANSLATIONS = {
         'cn': '📝 标题',
     },
     'description': {
-        'ru': '🖊️ Описание',
-        'kg': '🖊️ Сыпаттама',
-        'en': '🖊️ Description',
-        'cn': '🖊️ 描述',
+        'ru': 'Описание',
+        'kg': 'Сыпаттама',
+        'en': 'Description',
+        'cn': '描述',
     },
     "status": {
         "ru": "📌 Статус",
@@ -1698,10 +1724,10 @@ TRANSLATIONS = {
         "cn": "📂 子类别",
     },
     "phone": {
-        "ru": "📞 Телефон",
-        "kg": "📞 Телефон",
-        "en": "📞 Phone",
-        "cn": "📞 电话",
+        "ru": "Телефон",
+        "kg": "Телефон",
+        "en": "Phone",
+        "cn": "电话",
     },
     'edit_price': {
         'ru': '💰 Цена',
@@ -1714,6 +1740,677 @@ TRANSLATIONS = {
         'kg': '✏️ Жарыяны түзөтүү',
         'en': '✏️ Edit Ad',
         'cn': '✏️ 编辑广告',
+    },
+
+    # ---------- Профиль (profile) ----------
+    'profile_title': {
+        'ru': '👤 <b>Мой профиль</b>',
+        'kg': '👤 <b>Менин профилим</b>',
+        'en': '👤 <b>My profile</b>',
+        'cn': '👤 <b>我的资料</b>',
+    },
+    'profile_name': {
+        'ru': '🪪 Имя',
+        'kg': '🪪 Аты',
+        'en': '🪪 Name',
+        'cn': '🪪 姓名',
+    },
+    'profile_phone': {
+        'ru': '📱 Телефон',
+        'kg': '📱 Телефон',
+        'en': '📱 Phone',
+        'cn': '📱 电话',
+    },
+    'profile_balance': {
+        'ru': '💰 Баланс',
+        'kg': '💰 Баланс',
+        'en': '💰 Balance',
+        'cn': '💰 余额',
+    },
+    'profile_ads_count': {
+        'ru': '📢 Активных объявлений',
+        'kg': '📢 Активдүү жарыялар',
+        'en': '📢 Active ads',
+        'cn': '📢 有效广告',
+    },
+    'profile_sub_until': {
+        'ru': '💎 Подписка до: <b>{date}</b>',
+        'kg': '💎 Жазылуу бүткөнгө чейин: <b>{date}</b>',
+        'en': '💎 Subscription until: <b>{date}</b>',
+        'cn': '💎 订阅至：<b>{date}</b>',
+    },
+    'profile_sub_none': {
+        'ru': '💎 Подписка: нет',
+        'kg': '💎 Жазылуу: жок',
+        'en': '💎 Subscription: none',
+        'cn': '💎 订阅：无',
+    },
+    'btn_my_ads': {
+        'ru': '📢 Мои объявления',
+        'kg': '📢 Менин жарыяларым',
+        'en': '📢 My ads',
+        'cn': '📢 我的广告',
+    },
+    'btn_favorites': {
+        'ru': '⭐ Избранные',
+        'kg': '⭐ Тандалмалар',
+        'en': '⭐ Favorites',
+        'cn': '⭐ 收藏',
+    },
+    'btn_transactions': {
+        'ru': '💳 Транзакции',
+        'kg': '💳 Транзакциялар',
+        'en': '💳 Transactions',
+        'cn': '💳 交易记录',
+    },
+    'btn_edit_name': {
+        'ru': '✏️ Изменить имя',
+        'kg': '✏️ Атын өзгөртүү',
+        'en': '✏️ Change name',
+        'cn': '✏️ 修改姓名',
+    },
+    'btn_edit_phone': {
+        'ru': '📱 Изменить номер',
+        'kg': '📱 Номерди өзгөртүү',
+        'en': '📱 Change phone',
+        'cn': '📱 修改电话',
+    },
+    'my_ads_title': {
+        'ru': '📢 <b>Мои объявления</b>\n\nВыберите объявление:',
+        'kg': '📢 <b>Менин жарыяларым</b>\n\nЖарыяны тандаңыз:',
+        'en': '📢 <b>My ads</b>\n\nChoose an ad:',
+        'cn': '📢 <b>我的广告</b>\n\n请选择广告：',
+    },
+    'no_ads': {
+        'ru': '🤷 У вас пока нет объявлений.',
+        'kg': '🤷 Сизде азырынча жарыялар жок.',
+        'en': '🤷 You have no ads yet.',
+        'cn': '🤷 您还没有广告。',
+    },
+    'ad_status_active': {
+        'ru': '🟢 Активно',
+        'kg': '🟢 Активдүү',
+        'en': '🟢 Active',
+        'cn': '🟢 有效',
+    },
+    'ad_status_inactive': {
+        'ru': '🔴 Неактивно',
+        'kg': '🔴 Активдүү эмес',
+        'en': '🔴 Inactive',
+        'cn': '🔴 无效',
+    },
+    'ad_card': {
+        'ru': '🏷️ <b>{name}</b>\n\n🗂 Категория: {category}\n📂 Подкатегория: {subcategory}\n💵 Цена: <b>{price}</b>\n📊 Статус: {status}\n📅 Создано: {date}',
+        'kg': '🏷️ <b>{name}</b>\n\n🗂 Категория: {category}\n📂 Подкатегория: {subcategory}\n💵 Баасы: <b>{price}</b>\n📊 Абалы: {status}\n📅 Түзүлгөн: {date}',
+        'en': '🏷️ <b>{name}</b>\n\n🗂 Category: {category}\n📂 Subcategory: {subcategory}\n💵 Price: <b>{price}</b>\n📊 Status: {status}\n📅 Created: {date}',
+        'cn': '🏷️ <b>{name}</b>\n\n🗂 分类：{category}\n📂 子分类：{subcategory}\n💵 价格：<b>{price}</b>\n📊 状态：{status}\n📅 创建：{date}',
+    },
+    'btn_edit_ad_name': {
+        'ru': '✏️ Название',
+        'kg': '✏️ Аталышы',
+        'en': '✏️ Title',
+        'cn': '✏️ 标题',
+    },
+    'btn_edit_ad_price': {
+        'ru': '💰 Цена',
+        'kg': '💰 Баасы',
+        'en': '💰 Price',
+        'cn': '💰 价格',
+    },
+    'btn_deactivate': {
+        'ru': '🚫 Деактивировать',
+        'kg': '🚫 Өчүрүү',
+        'en': '🚫 Deactivate',
+        'cn': '🚫 停用',
+    },
+    'deactivate_confirm': {
+        'ru': '🚫 Деактивировать объявление?\nВ канале оно будет помечено как <b>ПРОДАНО</b>.',
+        'kg': '🚫 Жарыяны өчүрөсүзбү?\nКаналда ал <b>САТЫЛДЫ</b> деп белгиленет.',
+        'en': '🚫 Deactivate the ad?\nIt will be marked as <b>SOLD</b> in the channel.',
+        'cn': '🚫 停用广告？\n它将在频道中被标记为<b>已售出</b>。',
+    },
+    'ad_deactivated': {
+        'ru': '✅ Объявление деактивировано.',
+        'kg': '✅ Жарыя өчүрүлдү.',
+        'en': '✅ Ad deactivated.',
+        'cn': '✅ 广告已停用。',
+    },
+    'channel_update_failed': {
+        'ru': '⚠️ Не удалось обновить пост в канале, но данные сохранены.',
+        'kg': '⚠️ Каналдагы постту жаңыртуу мүмкүн болгон жок, бирок маалымат сакталды.',
+        'en': '⚠️ Failed to update the channel post, but the data was saved.',
+        'cn': '⚠️ 无法更新频道帖子，但数据已保存。',
+    },
+    'enter_new_ad_name': {
+        'ru': '✏️ Введите новое название объявления:',
+        'kg': '✏️ Жарыянын жаңы аталышын жазыңыз:',
+        'en': '✏️ Enter the new ad title:',
+        'cn': '✏️ 请输入新的广告标题：',
+    },
+    'enter_new_ad_price': {
+        'ru': '💰 Введите новую цену (только число) или нажмите «💬 Договорная»:',
+        'kg': '💰 Жаңы бааны жазыңыз (сан гана) же «💬 Келишим баада» баскычын басыңыз:',
+        'en': '💰 Enter the new price (number only) or tap «💬 Negotiable»:',
+        'cn': '💰 请输入新价格（仅数字）或点击「💬 面议」：',
+    },
+    'ad_updated': {
+        'ru': '✅ Объявление обновлено!',
+        'kg': '✅ Жарыя жаңыртылды!',
+        'en': '✅ Ad updated!',
+        'cn': '✅ 广告已更新！',
+    },
+    'ad_not_found': {
+        'ru': '❌ Объявление не найдено.',
+        'kg': '❌ Жарыя табылган жок.',
+        'en': '❌ Ad not found.',
+        'cn': '❌ 未找到广告。',
+    },
+    'favorites_title': {
+        'ru': '⭐ <b>Избранные объявления</b>',
+        'kg': '⭐ <b>Тандалма жарыялар</b>',
+        'en': '⭐ <b>Favorite ads</b>',
+        'cn': '⭐ <b>收藏的广告</b>',
+    },
+    'no_favorites': {
+        'ru': '🤷 В избранном пока пусто.\nПерешлите пост объявления из нашего канала, чтобы добавить его.',
+        'kg': '🤷 Тандалмалар азырынча бош.\nКошуу үчүн каналдан жарыянын постун жөнөтүңүз.',
+        'en': '🤷 Favorites are empty.\nForward an ad post from our channel to add it.',
+        'cn': '🤷 收藏夹是空的。\n从我们的频道转发广告帖子即可添加。',
+    },
+    'btn_add_favorite': {
+        'ru': '➕ Добавить',
+        'kg': '➕ Кошуу',
+        'en': '➕ Add',
+        'cn': '➕ 添加',
+    },
+    'btn_remove_favorite': {
+        'ru': '💔 Убрать из избранного',
+        'kg': '💔 Тандалмалардан алып салуу',
+        'en': '💔 Remove from favorites',
+        'cn': '💔 从收藏中移除',
+    },
+    'forward_ad_for_favorite': {
+        'ru': '📩 Перешлите пост объявления из нашего канала, и я добавлю его в избранное.',
+        'kg': '📩 Каналдан жарыянын постун жөнөтүңүз, мен аны тандалмаларга кошом.',
+        'en': '📩 Forward an ad post from our channel and I will add it to favorites.',
+        'cn': '📩 从我们的频道转发广告帖子，我会将其添加到收藏夹。',
+    },
+    'favorite_added': {
+        'ru': '⭐ Добавлено в избранное!',
+        'kg': '⭐ Тандалмаларга кошулду!',
+        'en': '⭐ Added to favorites!',
+        'cn': '⭐ 已添加到收藏！',
+    },
+    'favorite_removed': {
+        'ru': '💔 Убрано из избранного.',
+        'kg': '💔 Тандалмалардан алынып салынды.',
+        'en': '💔 Removed from favorites.',
+        'cn': '💔 已从收藏中移除。',
+    },
+    'already_favorite': {
+        'ru': '⭐ Это объявление уже в избранном.',
+        'kg': '⭐ Бул жарыя мурунтан эле тандалмаларда.',
+        'en': '⭐ This ad is already in favorites.',
+        'cn': '⭐ 该广告已在收藏中。',
+    },
+    'favorite_not_found': {
+        'ru': '❌ Это объявление не найдено в базе. Возможно, оно опубликовано до запуска избранного.',
+        'kg': '❌ Бул жарыя базадан табылган жок. Балким, ал тандалмалар иштегенге чейин жарыяланган.',
+        'en': '❌ This ad was not found in the database. It may have been published before favorites were launched.',
+        'cn': '❌ 数据库中未找到该广告。它可能是在收藏功能上线之前发布的。',
+    },
+    'transactions_title': {
+        'ru': '💳 <b>Последние транзакции</b>',
+        'kg': '💳 <b>Акыркы транзакциялар</b>',
+        'en': '💳 <b>Recent transactions</b>',
+        'cn': '💳 <b>最近交易</b>',
+    },
+    'no_transactions': {
+        'ru': '🤷 Транзакций пока нет.',
+        'kg': '🤷 Азырынча транзакциялар жок.',
+        'en': '🤷 No transactions yet.',
+        'cn': '🤷 暂无交易。',
+    },
+    'tx_to': {
+        'ru': 'кому',
+        'kg': 'кимге',
+        'en': 'to',
+        'cn': '给',
+    },
+    'tx_from': {
+        'ru': 'от',
+        'kg': 'кимден',
+        'en': 'from',
+        'cn': '来自',
+    },
+    'enter_new_name': {
+        'ru': '✏️ Введите новое имя:',
+        'kg': '✏️ Жаңы атыңызды жазыңыз:',
+        'en': '✏️ Enter your new name:',
+        'cn': '✏️ 请输入新姓名：',
+    },
+    'name_updated': {
+        'ru': '✅ Имя обновлено!',
+        'kg': '✅ Аты жаңыртылды!',
+        'en': '✅ Name updated!',
+        'cn': '✅ 姓名已更新！',
+    },
+    'phone_updated': {
+        'ru': '✅ Номер телефона обновлён!',
+        'kg': '✅ Телефон номери жаңыртылды!',
+        'en': '✅ Phone number updated!',
+        'cn': '✅ 电话号码已更新！',
+    },
+    'phone_not_yours': {
+        'ru': '⚠️ Пожалуйста, отправьте <b>свой</b> контакт кнопкой ниже. Пересланные и чужие контакты не принимаются.',
+        'kg': '⚠️ Сураныч, төмөнкү баскыч менен <b>өз</b> контактыңызды жөнөтүңүз. Башка бирөөнүн контактысы кабыл алынбайт.',
+        'en': '⚠️ Please send <b>your own</b> contact using the button below. Forwarded or other people\'s contacts are not accepted.',
+        'cn': '⚠️ 请使用下方按钮发送<b>您本人</b>的联系方式。不接受转发或他人的联系方式。',
+    },
+    'phone_need_contact': {
+        'ru': '📱 Нужен именно номер телефона. Отправьте его кнопкой «Отправить номер» или вернитесь в меню.',
+        'kg': '📱 Дал телефон номери керек. Аны «Телефонду жөнөтүү» баскычы менен жөнөтүңүз же менюга кайтыңыз.',
+        'en': '📱 A phone number is required. Send it with the “Send phone” button or return to the menu.',
+        'cn': '📱 需要电话号码。请用“发送号码”按钮发送，或返回菜单。',
+    },
+    'btn_confirm_yes': {
+        'ru': '✅ Да',
+        'kg': '✅ Ооба',
+        'en': '✅ Yes',
+        'cn': '✅ 是',
+    },
+    'btn_confirm_no': {
+        'ru': '❌ Нет',
+        'kg': '❌ Жок',
+        'en': '❌ No',
+        'cn': '❌ 否',
+    },
+
+    # ---------- Профиль: таблицы, редактирование, закрепление, подписка ----------
+    'tbl_name': {
+        'ru': 'Товар',
+        'kg': 'Товар',
+        'en': 'Item',
+        'cn': '商品',
+    },
+    'tbl_price': {
+        'ru': 'Цена',
+        'kg': 'Баасы',
+        'en': 'Price',
+        'cn': '价格',
+    },
+    'tbl_state': {
+        'ru': 'Ст.',
+        'kg': 'Абал',
+        'en': 'St.',
+        'cn': '状态',
+    },
+    'page_of': {
+        'ru': 'Стр. {current}/{total}',
+        'kg': 'Бет {current}/{total}',
+        'en': 'Page {current}/{total}',
+        'cn': '第 {current}/{total} 页',
+    },
+    'btn_edit_ad_status': {
+        'ru': '📊 Тип объявления',
+        'kg': '📊 Жарыянын түрү',
+        'en': '📊 Ad type',
+        'cn': '📊 广告类型',
+    },
+    'btn_edit_ad_subcat': {
+        'ru': '📂 Подкатегория',
+        'kg': '📂 Подкатегория',
+        'en': '📂 Subcategory',
+        'cn': '📂 子类别',
+    },
+    'btn_edit_ad_desc': {
+        'ru': '📝 Описание',
+        'kg': '📝 Сүрөттөмө',
+        'en': '📝 Description',
+        'cn': '📝 描述',
+    },
+    'btn_edit_ad_phone': {
+        'ru': '📱 Показ телефона',
+        'kg': '📱 Телефонду көрсөтүү',
+        'en': '📱 Phone visibility',
+        'cn': '📱 电话显示',
+    },
+    'btn_pin_ad': {
+        'ru': '📌 Закрепить',
+        'kg': '📌 Бекитүү',
+        'en': '📌 Pin',
+        'cn': '📌 置顶',
+    },
+    'enter_new_ad_desc': {
+        'ru': '📝 Введите новое описание объявления:',
+        'kg': '📝 Жарыянын жаңы сүрөттөмөсүн жазыңыз:',
+        'en': '📝 Enter the new ad description:',
+        'cn': '📝 请输入新的广告描述：',
+    },
+    'choose_ad_status': {
+        'ru': '📊 Выберите тип объявления:',
+        'kg': '📊 Жарыянын түрүн тандаңыз:',
+        'en': '📊 Choose the ad type:',
+        'cn': '📊 请选择广告类型：',
+    },
+    'choose_ad_subcat': {
+        'ru': '📂 Выберите подкатегорию:',
+        'kg': '📂 Подкатегорияны тандаңыз:',
+        'en': '📂 Choose a subcategory:',
+        'cn': '📂 请选择子类别：',
+    },
+    'choose_phone_visibility': {
+        'ru': '📱 Показывать номер телефона в объявлении?',
+        'kg': '📱 Жарыяда телефон номерин көрсөтөсүзбү?',
+        'en': '📱 Show the phone number in the ad?',
+        'cn': '📱 在广告中显示电话号码吗？',
+    },
+    'pin_offer': {
+        'ru': '📌 Закрепить объявление на {days} дн. за <b>{price}</b>?\n💰 Ваш баланс: <b>{balance}</b>',
+        'kg': '📌 Жарыяны {days} күнгө <b>{price}</b> үчүн бекитесизби?\n💰 Балансыңыз: <b>{balance}</b>',
+        'en': '📌 Pin the ad for {days} days for <b>{price}</b>?\n💰 Your balance: <b>{balance}</b>',
+        'cn': '📌 以 <b>{price}</b> 置顶广告 {days} 天？\n💰 您的余额：<b>{balance}</b>',
+    },
+    'pin_paid': {
+        'ru': '✅ Объявление закреплено на {days} дн.!',
+        'kg': '✅ Жарыя {days} күнгө бекитилди!',
+        'en': '✅ Ad pinned for {days} days!',
+        'cn': '✅ 广告已置顶 {days} 天！',
+    },
+    'pin_low_balance': {
+        'ru': '❌ Недостаточно средств. Нужно {price}, у вас {balance}. Пополните баланс.',
+        'kg': '❌ Каражат жетишсиз. {price} керек, сизде {balance}. Балансты толуктаңыз.',
+        'en': '❌ Insufficient funds. Need {price}, you have {balance}. Please top up.',
+        'cn': '❌ 余额不足。需要 {price}，您有 {balance}。请充值。',
+    },
+    'pin_failed': {
+        'ru': '❌ Не удалось закрепить (нет прав или ошибка). Средства возвращены.',
+        'kg': '❌ Бекитүү мүмкүн болбоду (укук жок же ката). Каражат кайтарылды.',
+        'en': '❌ Failed to pin (no rights or error). Funds refunded.',
+        'cn': '❌ 置顶失败（无权限或出错）。已退款。',
+    },
+    'sub_offer': {
+        'ru': '💎 <b>Подписка</b> на {days} дн. — <b>{price}</b>\n💰 Ваш баланс: <b>{balance}</b>\n\nЕсли у вас уже есть подписка, то оплата пойдет на ее продление.\n\nБезлимитные публикации во всех маркетах без кулдауна.',
+        'kg': '💎 <b>Жазылуу</b> {days} күнгө — <b>{price}</b>\n💰 Балансыңыз: <b>{balance}</b>\n\nЭгер сизде узактык жазылуу бар болсо, төлөм салынып кетет.\n\nБардык маркеттерде кулдаунсуз чексиз жарыялоо.',
+        'en': '💎 <b>Subscription</b> for {days} days — <b>{price}</b>\n💰 Your balance: <b>{balance}</b>\n\nIf you already have a subscription, the payment will go towards its renewal.\n\nUnlimited posting in all markets without cooldown.',
+        'cn': '💎 <b>订阅</b> {days} 天 — <b>{price}</b>\n💰 您的余额：<b>{balance}</b>\n\n如果您的订阅已存在，支付将用于续订。\n\n在所有市场无限发布，无冷却时间。',
+    },
+    'btn_sub_from_balance': {
+        'ru': '💰 Оплатить с баланса',
+        'kg': '💰 Баланстан төлөө',
+        'en': '💰 Pay from balance',
+        'cn': '💰 用余额支付',
+    },
+    'btn_sub_by_check': {
+        'ru': '🧾 Оплатить чеком',
+        'kg': '🧾 Чек менен төлөө',
+        'en': '🧾 Pay by receipt',
+        'cn': '🧾 凭收据支付',
+    },
+    'sub_paid': {
+        'ru': '✅ Подписка активирована на {days} дн.!',
+        'kg': '✅ Жазылуу {days} күнгө активдештирилди!',
+        'en': '✅ Subscription activated for {days} days!',
+        'cn': '✅ 订阅已激活 {days} 天！',
+    },
+    'sub_low_balance': {
+        'ru': '❌ Недостаточно средств. Нужно {price}, у вас {balance}. Пополните баланс.',
+        'kg': '❌ Каражат жетишсиз. {price} керек, сизде {balance}. Балансты толуктаңыз.',
+        'en': '❌ Insufficient funds. Need {price}, you have {balance}. Please top up.',
+        'cn': '❌ 余额不足。需要 {price}，您有 {balance}。请充值。',
+    },
+
+    # ---------- Валюта ----------
+    'currency': {
+        'ru': 'тезиков',
+        'kg': 'тезик',
+        'en': 'teziks',
+        'cn': '泰兹币',
+    },
+
+    # ---------- Перевод тезиков ----------
+    'btn_transfer': {
+        'ru': '💸 Перевести тезики',
+        'kg': '💸 Тезик которуу',
+        'en': '💸 Send teziks',
+        'cn': '💸 转账泰兹币',
+    },
+    'btn_replenish': {
+        'ru': '➕ Пополнить баланс',
+        'kg': '➕ Балансты толуктоо',
+        'en': '➕ Top up balance',
+        'cn': '➕ 充值余额',
+    },
+    'btn_choose_user': {
+        'ru': '👤 Выбрать пользователя',
+        'kg': '👤 Колдонуучуну тандоо',
+        'en': '👤 Choose user',
+        'cn': '👤 选择用户',
+    },
+    'transfer_choose_user': {
+        'ru': '💸 Кому перевести тезики? Нажмите кнопку ниже и выберите пользователя.',
+        'kg': '💸 Тезиктерди кимге которосуз? Төмөнкү баскычты басып, колдонуучуну тандаңыз.',
+        'en': '💸 Who to send teziks to? Tap the button below and choose a user.',
+        'cn': '💸 向谁转账泰兹币？点击下方按钮选择用户。',
+    },
+    'transfer_pick_user_hint': {
+        'ru': '👇 Пожалуйста, выберите пользователя кнопкой «Выбрать пользователя».',
+        'kg': '👇 Сураныч, «Колдонуучуну тандоо» баскычы менен тандаңыз.',
+        'en': '👇 Please choose a user with the “Choose user” button.',
+        'cn': '👇 请用“选择用户”按钮选择用户。',
+    },
+    'transfer_user_not_found': {
+        'ru': '❌ Этот пользователь не зарегистрирован в системе — перевод невозможен.',
+        'kg': '❌ Бул колдонуучу системада катталган эмес — которуу мүмкүн эмес.',
+        'en': '❌ This user is not registered in the system — transfer is not possible.',
+        'cn': '❌ 该用户未在系统注册 — 无法转账。',
+    },
+    'transfer_self': {
+        'ru': '❌ Нельзя перевести тезики самому себе.',
+        'kg': '❌ Тезиктерди өзүңүзгө которо албайсыз.',
+        'en': '❌ You cannot send teziks to yourself.',
+        'cn': '❌ 不能给自己转账泰兹币。',
+    },
+    'transfer_enter_amount': {
+        'ru': '💸 Введите сумму перевода для <b>{name}</b>:',
+        'kg': '💸 <b>{name}</b> үчүн которуу суммасын жазыңыз:',
+        'en': '💸 Enter the amount to send to <b>{name}</b>:',
+        'cn': '💸 请输入转给 <b>{name}</b> 的金额：',
+    },
+    'transfer_amount_invalid': {
+        'ru': '❌ Введите корректную сумму (число больше 0).',
+        'kg': '❌ Туура сумманы жазыңыз (0дөн чоң сан).',
+        'en': '❌ Enter a valid amount (a number greater than 0).',
+        'cn': '❌ 请输入有效金额（大于0的数字）。',
+    },
+    'transfer_insufficient': {
+        'ru': '❌ Недостаточно тезиков. Ваш баланс: <b>{balance}</b>.',
+        'kg': '❌ Тезик жетишсиз. Балансыңыз: <b>{balance}</b>.',
+        'en': '❌ Not enough teziks. Your balance: <b>{balance}</b>.',
+        'cn': '❌ 泰兹币不足。您的余额：<b>{balance}</b>。',
+    },
+    'transfer_done': {
+        'ru': '✅ Вы перевели <b>{amount}</b> пользователю <b>{name}</b>.\n💰 Баланс: <b>{balance}</b>',
+        'kg': '✅ Сиз <b>{name}</b> колдонуучуга <b>{amount}</b> которуп бердиңиз.\n💰 Баланс: <b>{balance}</b>',
+        'en': '✅ You sent <b>{amount}</b> to <b>{name}</b>.\n💰 Balance: <b>{balance}</b>',
+        'cn': '✅ 您已向 <b>{name}</b> 转账 <b>{amount}</b>。\n💰 余额：<b>{balance}</b>',
+    },
+    'transfer_received': {
+        'ru': '💰 Вам перевели <b>{amount}</b> от <b>{name}</b>!\n💰 Ваш баланс: <b>{balance}</b>',
+        'kg': '💰 Сизге <b>{name}</b> <b>{amount}</b> которду!\n💰 Балансыңыз: <b>{balance}</b>',
+        'en': '💰 You received <b>{amount}</b> from <b>{name}</b>!\n💰 Your balance: <b>{balance}</b>',
+        'cn': '💰 您收到来自 <b>{name}</b> 的 <b>{amount}</b>！\n💰 您的余额：<b>{balance}</b>',
+    },
+
+    # ---------- Пополнение баланса ----------
+    'replenish_choose': {
+        'ru': '💳 Выберите сумму пополнения:',
+        'kg': '💳 Толуктоо суммасын тандаңыз:',
+        'en': '💳 Choose a top-up amount:',
+        'cn': '💳 请选择充值金额：',
+    },
+    'replenish_warning': {
+        'ru': '⚠️ <b>Важно:</b> отправьте <b>ровно выбранную сумму</b>. Если сумма не совпадёт, тезики могут не начислиться автоматически — вопрос придётся решать с админом, а это требует времени.',
+        'kg': '⚠️ <b>Маанилүү:</b> <b>так тандалган сумманы</b> жөнөтүңүз. Эгер сумма дал келбесе, тезиктер автоматтык түрдө кошулбай калышы мүмкүн — маселени админ менен чечүү керек болот, ал убакыт талап кылат.',
+        'en': '⚠️ <b>Important:</b> send <b>exactly the chosen amount</b>. If it does not match, teziks may not be credited automatically — you will have to resolve it with the admin, which takes time.',
+        'cn': '⚠️ <b>重要：</b>请发送<b>恰好所选的金额</b>。若金额不符，泰兹币可能不会自动到账 — 需与管理员解决，这需要时间。',
+    },
+    'replenish_instruction': {
+        'ru': '💳 Пополнение на <b>{amount}</b>.\n\nОплатите на MBank и отправьте фото чека сюда.',
+        'kg': '💳 <b>{amount}</b> толуктоо.\n\nMBank аркылуу төлөп, чектин сүрөтүн ушул жерге жөнөтүңүз.',
+        'en': '💳 Top-up of <b>{amount}</b>.\n\nPay via MBank and send the receipt photo here.',
+        'cn': '💳 充值 <b>{amount}</b>。\n\n请通过 MBank 付款并将收据照片发送到这里。',
+    },
+    'replenish_receipt_sent': {
+        'ru': '✅ Чек отправлен на проверку. После подтверждения тезики будут зачислены.',
+        'kg': '✅ Чек текшерүүгө жөнөтүлдү. Ырасталгандан кийин тезиктер кошулат.',
+        'en': '✅ Receipt sent for review. Teziks will be credited after confirmation.',
+        'cn': '✅ 收据已发送审核。确认后泰兹币将到账。',
+    },
+    'replenish_confirmed': {
+        'ru': '✅ Ваш баланс пополнен на <b>{amount}</b>!',
+        'kg': '✅ Балансыңыз <b>{amount}</b> толукталды!',
+        'en': '✅ Your balance has been topped up by <b>{amount}</b>!',
+        'cn': '✅ 您的余额已充值 <b>{amount}</b>！',
+    },
+    'replenish_declined': {
+        'ru': '❌ Пополнение отклонено. Свяжитесь с поддержкой, если это ошибка.',
+        'kg': '❌ Толуктоо четке кагылды. Ката болсо, колдоо кызматына кайрылыңыз.',
+        'en': '❌ Top-up declined. Contact support if this is a mistake.',
+        'cn': '❌ 充值被拒绝。如有误请联系客服。',
+    },
+
+    # ---------- Таблица транзакций ----------
+    'tbl_amount': {
+        'ru': 'Сумма',
+        'kg': 'Сумма',
+        'en': 'Amount',
+        'cn': '金额',
+    },
+    'tbl_party': {
+        'ru': 'Контрагент',
+        'kg': 'Тарап',
+        'en': 'Party',
+        'cn': '对方',
+    },
+
+    # ---------- Флоу выставления объявления ----------
+    'step_status': {'ru': 'Тип', 'kg': 'Түрү', 'en': 'Type', 'cn': '类型'},
+    'step_subcategory': {'ru': 'Раздел', 'kg': 'Бөлүм', 'en': 'Section', 'cn': '分类'},
+    'step_name': {'ru': 'Название', 'kg': 'Аталышы', 'en': 'Title', 'cn': '名称'},
+    'step_desc': {'ru': 'Описание', 'kg': 'Сүрөттөмө', 'en': 'Desc', 'cn': '描述'},
+    'step_price': {'ru': 'Цена', 'kg': 'Баасы', 'en': 'Price', 'cn': '价格'},
+    'step_photos': {'ru': 'Фото', 'kg': 'Сүрөт', 'en': 'Photos', 'cn': '照片'},
+    'step_phone': {'ru': 'Телефон', 'kg': 'Телефон', 'en': 'Phone', 'cn': '电话'},
+    'flow_start_notice': {
+        'ru': 'ℹ️ Во время создания объявления вернуться и изменить введённое нельзя. Но процесс можно приостановить кнопкой «Меню» — кулдаун при этом не спишется.',
+        'kg': 'ℹ️ Жарыяны түзүү учурунда киргизилгенди артка кайтарып өзгөртүү мүмкүн эмес. Бирок процессти «Меню» баскычы менен токтотсоңуз болот — кулдаун эсептелбейт.',
+        'en': 'ℹ️ While creating an ad you cannot go back and edit what you entered. But you can pause with the “Menu” button — the cooldown will not be applied.',
+        'cn': 'ℹ️ 创建广告过程中无法返回修改已输入的内容。但可用“菜单”按钮暂停 — 冷却时间不会计算。',
+    },
+    'choose_subcategories': {
+        'ru': '📂 Выберите подкатегории (от 1 до 3), затем нажмите «Готово»:',
+        'kg': '📂 Подкатегорияларды тандаңыз (1-3), анан «Даяр» басыңыз:',
+        'en': '📂 Choose subcategories (1 to 3), then tap “Done”:',
+        'cn': '📂 请选择子分类（1-3个），然后点击“完成”：',
+    },
+    'btn_subcat_done': {
+        'ru': '✅ Готово',
+        'kg': '✅ Даяр',
+        'en': '✅ Done',
+        'cn': '✅ 完成',
+    },
+    'subcat_max': {
+        'ru': '⚠️ Можно выбрать максимум {n} подкатегории.',
+        'kg': '⚠️ Эң көбү {n} подкатегория тандаса болот.',
+        'en': '⚠️ You can choose at most {n} subcategories.',
+        'cn': '⚠️ 最多可选择 {n} 个子分类。',
+    },
+    'subcat_min': {
+        'ru': '⚠️ Выберите хотя бы одну подкатегорию.',
+        'kg': '⚠️ Жок дегенде бир подкатегория тандаңыз.',
+        'en': '⚠️ Choose at least one subcategory.',
+        'cn': '⚠️ 请至少选择一个子分类。',
+    },
+    'choose_currency': {
+        'ru': '💱 Выберите валюту цены:',
+        'kg': '💱 Баанын валютасын тандаңыз:',
+        'en': '💱 Choose the price currency:',
+        'cn': '💱 请选择价格货币：',
+    },
+    'cooldown_pay_offer': {
+        'ru': '💸 Опубликовать досрочно за <b>{price}</b> с баланса?\n💰 Ваш баланс: <b>{balance}</b>',
+        'kg': '💸 Мөөнөтүнөн мурда <b>{price}</b> баланстан төлөп жарыялайсызбы?\n💰 Балансыңыз: <b>{balance}</b>',
+        'en': '💸 Publish early for <b>{price}</b> from your balance?\n💰 Your balance: <b>{balance}</b>',
+        'cn': '💸 用余额支付 <b>{price}</b> 提前发布？\n💰 您的余额：<b>{balance}</b>',
+    },
+    'cooldown_paid': {
+        'ru': '✅ Оплачено! Продолжайте создание объявления.',
+        'kg': '✅ Төлөндү! Жарыяны түзүүнү улантыңыз.',
+        'en': '✅ Paid! Continue creating your ad.',
+        'cn': '✅ 已支付！请继续创建广告。',
+    },
+    'cooldown_low_balance': {
+        'ru': '❌ Недостаточно тезиков (нужно {price}, у вас {balance}).\nПополните баланс: Меню → 👤 Профиль → ➕ Пополнить баланс, затем вернитесь к созданию объявления.',
+        'kg': '❌ Тезик жетишсиз ({price} керек, сизде {balance}).\nБалансты толуктаңыз: Меню → 👤 Профиль → ➕ Балансты толуктоо, анан жарыя түзүүгө кайтыңыз.',
+        'en': '❌ Not enough teziks (need {price}, you have {balance}).\nTop up: Menu → 👤 Profile → ➕ Top up balance, then return to creating the ad.',
+        'cn': '❌ 泰兹币不足（需要 {price}，您有 {balance}）。\n请充值：菜单 → 👤 个人资料 → ➕ 充值余额，然后返回创建广告。',
+    },
+    'sub_confirm_charge': {
+        'ru': '💎 Списать <b>{price}</b> с баланса за подписку?\n💰 Ваш баланс: <b>{balance}</b>',
+        'kg': '💎 Жазылуу үчүн баланстан <b>{price}</b> алынсынбы?\n💰 Балансыңыз: <b>{balance}</b>',
+        'en': '💎 Charge <b>{price}</b> from your balance for the subscription?\n💰 Your balance: <b>{balance}</b>',
+        'cn': '💎 从余额扣除 <b>{price}</b> 用于订阅？\n💰 您的余额：<b>{balance}</b>',
+    },
+
+    # ---------- Поддержка / FAQ ----------
+    'faq_title': {
+        'ru': '❓ <b>Частые вопросы</b>\n\nВыберите раздел, который вас интересует:',
+        'kg': '❓ <b>Көп берилүүчү суроолор</b>\n\nСизди кызыктырган бөлүмдү тандаңыз:',
+        'en': '❓ <b>Frequently asked questions</b>\n\nChoose a section you are interested in:',
+        'cn': '❓ <b>常见问题</b>\n\n请选择您感兴趣的板块：',
+    },
+    'faq_category_title': {
+        'ru': '<b>{category}</b>\n\nВыберите вопрос:',
+        'kg': '<b>{category}</b>\n\nСуроону тандаңыз:',
+        'en': '<b>{category}</b>\n\nChoose a question:',
+        'cn': '<b>{category}</b>\n\n请选择问题：',
+    },
+    'faq_empty': {
+        'ru': '🤷 Здесь пока нет справочных материалов. Загляните позже.',
+        'kg': '🤷 Бул жерде азырынча маалымат жок. Кийинчерээк кайрылыңыз.',
+        'en': '🤷 No help articles here yet. Please check back later.',
+        'cn': '🤷 暂无帮助内容，请稍后再来。',
+    },
+    'faq_no_items': {
+        'ru': '🤷 В этом разделе пока нет вопросов.',
+        'kg': '🤷 Бул бөлүмдө азырынча суроолор жок.',
+        'en': '🤷 No questions in this section yet.',
+        'cn': '🤷 此板块暂无问题。',
+    },
+    'faq_contact': {
+        'ru': '💬 Написать в поддержку',
+        'kg': '💬 Колдоо кызматына жазуу',
+        'en': '💬 Contact support',
+        'cn': '💬 联系客服',
+    },
+    'faq_back_categories': {
+        'ru': '◀️ К разделам',
+        'kg': '◀️ Бөлүмдөргө',
+        'en': '◀️ To sections',
+        'cn': '◀️ 返回板块',
+    },
+    'faq_back_items': {
+        'ru': '◀️ К вопросам',
+        'kg': '◀️ Суроолорго',
+        'en': '◀️ To questions',
+        'cn': '◀️ 返回问题',
+    },
+    'faq_to_menu': {
+        'ru': '🏠 Меню',
+        'kg': '🏠 Меню',
+        'en': '🏠 Menu',
+        'cn': '🏠 菜单',
     }
 }
 

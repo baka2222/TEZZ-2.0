@@ -1,6 +1,6 @@
 import logging
 from aiogram import types, Router, F
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
@@ -8,12 +8,12 @@ from aiogram.types import (
     CallbackQuery, ReplyKeyboardMarkup, KeyboardButton,
     ReplyKeyboardRemove
 )
-from sqlalchemy import select, update
 
 from bot.translations import t
 from bot.database.session import async_session as async_session_maker
-from bot.database.models import Client
-from bot.handlers.menu_handler import get_main_menu_inline
+from bot.handlers.menu_handler import get_main_menu_inline, get_available_markets_links
+from bot.services.sellbuy_service import SellBuyService
+from bot.services.profile_service import ProfileService
 
 logger = logging.getLogger(__name__)
 
@@ -26,74 +26,68 @@ class RegistrationStates(StatesGroup):
     phone = State()
 
 
-async def get_client_by_tg(tg_code: str) -> Client | None:
+async def add_favorite_deeplink(message: types.Message, ad_id_str: str, lang: str):
+    try:
+        ad_id = int(ad_id_str)
+    except ValueError:
+        await message.answer(t('favorite_not_found', lang))
+        return
     async with async_session_maker() as session:
-        result = await session.execute(
-            select(Client).where(Client.tg_code == tg_code)
+        service = ProfileService(session)
+        client = await service.get_client_by_tg(message.from_user.id)
+        ad = await service.get_ad(ad_id)
+        if not ad:
+            await message.answer(t('favorite_not_found', lang))
+            return
+        added = await service.add_favorite(client.id, ad.id)
+    await message.answer(
+        t('favorite_added', lang) if added else t('already_favorite', lang),
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[[KeyboardButton(text=t('menu_button', lang))]],
+            resize_keyboard=True
         )
-        return result.scalar_one_or_none()
-
-
-async def get_user_lang(tg_code: str) -> str:
-    client = await get_client_by_tg(tg_code)
-    return client.language if client and client.language else 'ru'
-
-
-async def save_client(name: str, phone: str, tg_code: str, username: str | None = None, language: str = 'ru') -> Client:
-    async with async_session_maker() as session:
-        result = await session.execute(
-            select(Client).where(Client.tg_code == tg_code)
-        )
-        client = result.scalar_one_or_none()
-
-        if client:
-            updated = False
-            if client.name != name:
-                client.name = name
-                updated = True
-            if client.phone != phone:
-                client.phone = phone
-                updated = True
-            if username and client.username != username:
-                client.username = username
-                updated = True
-            if client.language != language:
-                client.language = language
-                updated = True
-            if updated:
-                await session.commit()
-        else:
-            client = Client(
-                tg_code=tg_code,
-                name=name,
-                phone=phone,
-                username=username,
-                language=language
-            )
-            session.add(client)
-            await session.commit()
-            await session.refresh(client)
-
-        return client
+    )
 
 
 @commands_router.message(Command('start'))
-async def greeting(message: types.Message, state: FSMContext):
-    """Начало регистрации: выбор языка."""
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🇷🇺 Русский", callback_data="strtlang_ru")],
-        [InlineKeyboardButton(text="🇰🇬 Кыргызча", callback_data="strtlang_kg")],
-        [InlineKeyboardButton(text="🇬🇧 English", callback_data="strtlang_en")],
-        [InlineKeyboardButton(text="🇨🇳 中文", callback_data="strtlang_cn")],
-    ])
-    await message.answer_sticker(
-        "CAACAgIAAxkBAAEQtzhpruHmYB8h_ZAGLpOPGdYCYvziAwACdEkAAqAn-Ep7XyQ4GdeaIDoE"
-    )
-    await message.answer(
-        "🌐 Please choose your language / Пожалуйста, выберите язык:",
-        reply_markup=kb
-    )
-    await state.set_state(RegistrationStates.language)
+async def greeting(message: types.Message, state: FSMContext, command: CommandObject):
+    async with async_session_maker() as session:
+        service = SellBuyService(session)
+        client = await service.get_client_by_tg(message.from_user.id)
+
+        if client:
+            lang = client.language if client.language else 'ru'
+
+            arg = command.args if command else None
+            if arg and arg.startswith('addfav_'):
+                await add_favorite_deeplink(message, arg.removeprefix('addfav_'), lang)
+                return
+
+            await message.answer_sticker('CAACAgIAAxkBAAEQqd9ppqYGgpxhWK2uuQ7L3S5d1zqDvAACAQEAAladvQoivp8OuMLmNDoE')
+            await message.answer(
+                t('remembered_client', lang),
+                parse_mode="HTML",
+                reply_markup=ReplyKeyboardMarkup(
+                    keyboard=[[KeyboardButton(text=t('menu_button', lang))]],
+                    resize_keyboard=True
+                )
+            )
+            return
+        
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🇷🇺 Русский", callback_data="strtlang_ru")],
+            [InlineKeyboardButton(text="🇰🇬 Кыргызча", callback_data="strtlang_kg")],
+            [InlineKeyboardButton(text="🇬🇧 English", callback_data="strtlang_en")],
+            [InlineKeyboardButton(text="🇨🇳 中文", callback_data="strtlang_cn")],
+        ])
+        await message.answer_sticker(
+            "CAACAgIAAxkBAAEQtzhpruHmYB8h_ZAGLpOPGdYCYvziAwACdEkAAqAn-Ep7XyQ4GdeaIDoE"
+        )
+        await message.answer(
+            "🌐 Please choose your language / Пожалуйста, выберите язык:",
+            reply_markup=kb
+        )
+        await state.set_state(RegistrationStates.language)
 
 
 @commands_router.callback_query(RegistrationStates.language, F.data.startswith("strtlang_"))
@@ -106,7 +100,7 @@ async def process_language(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@commands_router.message(RegistrationStates.name)
+@commands_router.message(RegistrationStates.name, ~F.text.in_({"/menu", "/start", "/market"}))
 async def ask_phone(message: types.Message, state: FSMContext):
     """Получение имени, запрос телефона."""
     data = await state.get_data()
@@ -125,35 +119,51 @@ async def ask_phone(message: types.Message, state: FSMContext):
     await state.set_state(RegistrationStates.phone)
 
 
-@commands_router.message(RegistrationStates.phone)
+def is_own_contact(message: types.Message) -> bool:
+    if not message.contact:
+        return False
+    if message.forward_origin is not None:
+        return False
+    return message.contact.user_id == message.from_user.id
+
+
+@commands_router.message(RegistrationStates.phone, F.contact)
 async def finish_registration(message: types.Message, state: FSMContext):
     """Завершение регистрации, сохранение в БД и показ главного меню."""
     data = await state.get_data()
-    name = data.get('name')
     lang = data.get('language', 'ru')
-    phone = message.contact.phone_number if message.contact else message.text
-    tg_code = str(message.from_user.id)
-    username = message.from_user.username
 
-    await save_client(name, phone, tg_code, username, lang)
+    if not is_own_contact(message):
+        await message.answer(t('phone_not_yours', lang), parse_mode="HTML")
+        return
 
-    kb_menu = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=t('menu_button', lang))]],
-        resize_keyboard=True
-    )
+    async with async_session_maker() as session:
+        service = SellBuyService(session)
+        name = data.get('name')
+        phone = message.contact.phone_number
+        tg_code = str(message.from_user.id)
+        username = message.from_user.username
 
-    await message.answer(
-        t('registration_complete', lang),
-        reply_markup=kb_menu,
-        parse_mode="HTML"
-    )
-    await message.answer(
-        t('channels_list', lang),
-        parse_mode="HTML"
-    )
-    await message.answer(
-        t('menu_text', lang),
-        parse_mode="HTML",
-        reply_markup=get_main_menu_inline(lang)
-    )
-    await state.clear()
+        await service.save_client(name, phone, tg_code, username, lang)
+
+        kb_menu = ReplyKeyboardMarkup(
+            keyboard=[[KeyboardButton(text=t('menu_button', lang))]],
+            resize_keyboard=True
+        )
+
+        await message.answer(
+            t('registration_complete', lang),
+            reply_markup=kb_menu,
+            parse_mode="HTML"
+        )
+        await message.answer(
+            t('channels_list', lang),
+            reply_markup=get_available_markets_links(lang),
+            parse_mode="HTML"
+        )
+        await message.answer(
+            t('menu_text', lang),
+            parse_mode="HTML",
+            reply_markup=get_main_menu_inline(lang)
+        )
+        await state.clear()

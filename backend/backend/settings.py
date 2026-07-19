@@ -15,6 +15,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'edu',
     'client',
+    'faq',
+    'payments',
     'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -57,7 +59,7 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600
 WSGI_APPLICATION = 'backend.wsgi.application'
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-SECURE_SSL_REDIRECT = True
+SECURE_SSL_REDIRECT = os.environ.get('DJANGO_SECURE_SSL_REDIRECT', 'True') == 'True'
 
 
 CORS_ALLOWED_ORIGINS = [
@@ -87,7 +89,19 @@ JAZZMIN_SETTINGS = {
     "copyright": "TEZZ",
     "navigation_expanded": True,
 
-    "theme": "darkly", 
+    # Гарантированная ссылка на отчёт по платежам в сайдбаре (не зависит от
+    # переопределения change_list.html темой Jazzmin).
+    "custom_links": {
+        "payments": [
+            {
+                "name": "Отчёт и графики",
+                "url": "admin:payments_report",
+                "icon": "fas fa-chart-line",
+            },
+        ],
+    },
+
+    "theme": "darkly",
 }
 
 

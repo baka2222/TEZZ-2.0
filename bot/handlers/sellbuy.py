@@ -12,62 +12,136 @@ from aiogram.types import (
 from bot.translations import t
 from bot.database.session import async_session as async_session_maker
 from bot.services.sellbuy_service import SellBuyService
+from bot.services.profile_service import ProfileService
 from aiogram.types import FSInputFile
 from pathlib import Path
+
+from bot.channels import (
+    CHANNELS,
+    ADMIN_ID,
+    SLUG_TO_CATEGORY,
+    CATEGORY_TO_SLUG,
+    get_category_label,
+    get_status_keys,
+    get_status_label,
+    get_subcategory_keys,
+    get_subcategory_label,
+    get_cooldown_days,
+    get_placement_price,
+    get_currencies,
+    get_favorite_link,
+)
+from bot.handlers.menu_handler import show_menu_prompt, send_not_registered, get_main_menu_keyboard
 
 logger = logging.getLogger(__name__)
 
 sellbuy_router = Router()
 
-# ---------- Конфигурация каналов ----------
-CHANNELS = {
-    "Веломаркет": {
-        "id": -1002615944125,
-        "link": "https://t.me/teztezfg",
-        "cooldown_field": "next_ability",
-        "subcategories": ['frameset', 'wheelset', 'fullbike', 'components', 'crankset', 'accessories', 'clothing', 'velo']
-    },
-    "Бьютимаркет": {
-        "id": -1002762051372,
-        "link": "https://t.me/tezbueaty/4",
-        "cooldown_field": "next_ability_beauty",
-        "subcategories": ['makeup', 'skincare', 'haircare', 'fragrance', 'tools', 'nails', 'models', 'clothing', 'beauty']
-    },
-    "Техномаркет": {
-        "id": -1002897679802,
-        "link": "https://t.me/teztechno/2",
-        "cooldown_field": "next_ability_techno",
-        "subcategories": ['phones', 'laptops', 'tablets', 'wearables', 'audio', 'gaming', 'cameras', 'techno']
-    },
-    "Автомотомаркет": {
-        "id": -1002549461746,
-        "link": "https://t.me/tezautomoto/2",
-        "cooldown_field": "next_ability_automoto",
-        "subcategories": ['cars', 'motorcycles', 'parts', 'accessories', 'tires', 'tools', 'automoto']
-    },
-    "Недвижимость": {
-        "id": -1002711157981,
-        "link": "https://t.me/tezhousing/2",
-        "cooldown_field": "next_ability_housing",
-        "subcategories": ['apartment', 'house', 'land', 'commercial', 'rent', 'one-bedroom', 'two-bedroom', 'three-bedroom', 'housing']
-    },
-    "Работа": {
-        "id": -1002788239459,
-        "link": "https://t.me/tezzjob/3",
-        "cooldown_field": "next_ability_job",
-        "subcategories": ['fulltime', 'parttime', 'contract', 'office', 'athome', 'job']
-    }
+STEP_KEYS = ['status', 'subcategory', 'name', 'desc', 'price', 'photos', 'phone']
+MAX_SUBCATS = 2
+
+# Цена 0 в БД = «Договорная» (без миграции схемы: поле price NOT NULL Integer).
+NEGOTIABLE_PRICE = 0
+NEGOTIABLE_WORDS = {
+    'договорная', 'договор', 'келишим', 'келишим баада',
+    'negotiable', 'nego', '面议',
 }
 
-ADMIN_ID = 5837210969
 
-def slugify(name: str) -> str:
-    return ''.join(ch if ch.isalnum() else '_' for ch in name).lower()
+def money(amount, lang: str) -> str:
+    return f"{amount} {t('currency', lang)}"
 
-SLUG_TO_CATEGORY = { slugify(k): k for k in CHANNELS.keys() }
-CATEGORY_TO_SLUG = { v: k for k, v in SLUG_TO_CATEGORY.items() }
 
-# ---------- FSM состояния ----------
+def format_price(price, currency, lang: str) -> str:
+    """Цена для показа: «Договорная» если price==0, иначе '2 500 KGS'."""
+    currency = currency or 'KGS'
+    try:
+        value = int(price)
+    except (TypeError, ValueError):
+        value = 0
+    if value == NEGOTIABLE_PRICE:
+        return t('price_negotiable', lang)
+    return f"{value:,}".replace(",", " ") + f" {currency}"
+
+
+def build_channel_caption(hashtags, owner, status_ru, name, desc, price_text,
+                          phone_text, user_id, fav_ad_id=None) -> str:
+    fav_line = ''
+    if fav_ad_id is not None:
+        fav_line = (
+            f"⭐️ <a href='{get_favorite_link(fav_ad_id)}'>Добавить в избранное</a>\n"
+        )
+    return (
+        f'<b>{hashtags}</b>\n'
+        f'<b>{owner}</b>\n'
+        f"<b>{status_ru}</b>\n"
+        f"🏷️ <b>{name}</b>\n\n"
+        f"{desc}\n\n"
+        f"💵 Цена: {price_text}\n"
+        f"{phone_text}\n"
+        f"✉️ <a href='tg://user?id={user_id}'>Написать продавцу</a>\n"
+        f"{fav_line}"
+        f"📢 <a href='https://t.me/tez4917_bot'>Разместить объявление</a>"
+    )
+
+
+def breadcrumbs(lang: str, current: str) -> str:
+    parts = []
+    reached = False
+    for key in STEP_KEYS:
+        label = t(f'step_{key}', lang)
+        if key == current:
+            parts.append(f"🔵 {label}")
+            reached = True
+        elif not reached:
+            parts.append(f"✅ {label}")
+        else:
+            parts.append(f"⚪ {label}")
+    return "🧭 " + " · ".join(parts)
+
+
+def build_status_keyboard(category: str, lang: str) -> InlineKeyboardMarkup:
+    keys = get_status_keys(category)
+    rows = [
+        [
+            InlineKeyboardButton(text=get_status_label(category, key, lang), callback_data=f"sb_status_{key}")
+            for key in keys[i:i + 3]
+        ]
+        for i in range(0, len(keys), 3)
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def build_subcat_keyboard(category: str, lang: str, selected: list) -> InlineKeyboardMarkup:
+    keys = get_subcategory_keys(category)
+    rows = []
+    for i in range(0, len(keys), 2):
+        row = []
+        for key in keys[i:i + 2]:
+            mark = '✅ ' if key in selected else ''
+            row.append(InlineKeyboardButton(
+                text=f"{mark}{get_subcategory_label(category, key, lang)}",
+                callback_data=f"sb_subtog_{key}"
+            ))
+        rows.append(row)
+    rows.append([InlineKeyboardButton(text=t('btn_subcat_done', lang), callback_data="sb_sub_done")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+async def ask_photos(target, state: FSMContext, lang: str):
+    kb = ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=t('done_button', lang))], [KeyboardButton(text=t('menu_button', lang))]],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+    await target.answer(
+        breadcrumbs(lang, 'photos') + "\n\n" + t('add_photos', lang),
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
+    await state.set_state(SellFSM.photos)
+
+
 class SellFSM(StatesGroup):
     category = State()
     status = State()
@@ -75,31 +149,13 @@ class SellFSM(StatesGroup):
     name = State()
     desc = State()
     price = State()
+    currency = State()
     photos = State()
     show_phone = State()
     confirm = State()
 
 class PaidAnnouncement(StatesGroup):
     waiting_for_payment = State()
-
-# ---------- Вспомогательные функции для работы с меню ----------
-def get_main_menu_keyboard(lang: str) -> ReplyKeyboardMarkup:
-    """Клавиатура с единственной кнопкой «Меню» (показывается после завершения опроса)."""
-    button = KeyboardButton(text=t('menu_button', lang))
-    return ReplyKeyboardMarkup(
-        keyboard=[[button]],
-        resize_keyboard=True,
-        one_time_keyboard=False
-    )
-
-async def show_menu_prompt(chat_id: int, bot, lang: str):
-    """Отправляет подсказку нажать кнопку «Меню» и саму клавиатуру."""
-    await bot.send_message(
-        chat_id=chat_id,
-        text=t('press_menu_button', lang),
-        reply_markup=get_main_menu_keyboard(lang),
-        parse_mode="HTML"
-    )
 
 
 @sellbuy_router.message(Command("market"))
@@ -110,18 +166,17 @@ async def start_sell_command(message: types.Message, state: FSMContext):
         lang = client.language if client and client.language else 'ru'
 
     if not client:
-        await message.answer(t('not_registered', lang))
+        await send_not_registered(message)
         return
     if client.is_banned:
         await message.answer(t('banned', lang))
         return
 
     buttons = []
-    buttons.append([InlineKeyboardButton(text=t('pin_begin', lang), callback_data='pin_message'), InlineKeyboardButton(text=t('subscription_menu', lang), callback_data='subscription')])
 
     for name in CHANNELS.keys():
         slug = CATEGORY_TO_SLUG[name]
-        button_text = t(f'category_{slug}', lang)
+        button_text = get_category_label(name, lang)
         buttons.append([InlineKeyboardButton(text=button_text, callback_data=f"sb_cat_{slug}")])
 
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -138,7 +193,7 @@ async def start_sell(callback: types.CallbackQuery, state: FSMContext):
         lang = client.language if client and client.language else 'ru'
 
     if not client:
-        await callback.message.answer(t('not_registered', lang))
+        await send_not_registered(callback)
         await callback.answer()
         return
     if client.is_banned:
@@ -147,11 +202,10 @@ async def start_sell(callback: types.CallbackQuery, state: FSMContext):
         return
 
     buttons = []
-    buttons.append([InlineKeyboardButton(text=t('pin_begin', lang), callback_data='pin_message'), InlineKeyboardButton(text=t('subscription_menu', lang), callback_data='subscription')])
 
     for name in CHANNELS.keys():
         slug = CATEGORY_TO_SLUG[name]
-        button_text = t(f'category_{slug}', lang)
+        button_text = get_category_label(name, lang)
         buttons.append([InlineKeyboardButton(text=button_text, callback_data=f"sb_cat_{slug}")])
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -174,7 +228,7 @@ async def choose_category(callback: types.CallbackQuery, state: FSMContext):
         return
 
     if not client:
-        await callback.message.answer(t('not_registered', lang))
+        await send_not_registered(callback)
         await state.clear()
         return
 
@@ -198,37 +252,17 @@ async def choose_category(callback: types.CallbackQuery, state: FSMContext):
                 time_parts.append(f"{minutes} {t('minutes', lang)}")
             
             subscription_text = t('subscription_active', lang).format(time=' '.join(time_parts))
-            await state.update_data(category=category, category_slug=slug)
+            await state.update_data(category=category, category_slug=slug, subcats=[])
 
-            if category == 'Недвижимость':
-                kb = InlineKeyboardMarkup(inline_keyboard=[[
-                    InlineKeyboardButton(text=t('status_sell', lang), callback_data="sb_status_sell"),
-                    InlineKeyboardButton(text=t('status_hand', lang), callback_data="sb_status_hand"),
-                    InlineKeyboardButton(text=t('status_search', lang), callback_data="sb_status_search"),
-                ]])
-            elif category == 'Работа':
-                kb = InlineKeyboardMarkup(inline_keyboard=[[
-                    InlineKeyboardButton(text=t('status_resume', lang), callback_data="sb_status_resume"),
-                    InlineKeyboardButton(text=t('status_vacancy', lang), callback_data="sb_status_vacancy"),
-                ]])
-            elif category == 'Бьютимаркет':
-                kb = InlineKeyboardMarkup(inline_keyboard=[[
-                    InlineKeyboardButton(text=t('status_sell', lang), callback_data="sb_status_sell"),
-                    InlineKeyboardButton(text=t('status_poda', lang), callback_data="sb_status_poda"),
-                    InlineKeyboardButton(text=t('status_search', lang), callback_data="sb_status_search"),
-                ]])
-            else:
-                kb = InlineKeyboardMarkup(inline_keyboard=[[
-                    InlineKeyboardButton(text=t('status_sell', lang), callback_data="sb_status_sell"),
-                    InlineKeyboardButton(text=t('status_exchange', lang), callback_data="sb_status_exchange"),
-                    InlineKeyboardButton(text=t('status_search', lang), callback_data="sb_status_search"),
-                ]])
+            kb = build_status_keyboard(category, lang)
 
-            category_display = t(f'category_{slug}', lang)
+            category_display = get_category_label(category, lang)
             await callback.message.delete()
             await callback.message.answer(subscription_text, parse_mode="HTML")
             await callback.message.answer(
-                t('choose_status', lang).format(category=category_display),
+                t('flow_start_notice', lang) + "\n\n"
+                + breadcrumbs(lang, 'status') + "\n\n"
+                + t('choose_status', lang).format(category=category_display),
                 reply_markup=kb,
                 parse_mode="HTML"
             )
@@ -258,50 +292,93 @@ async def choose_category(callback: types.CallbackQuery, state: FSMContext):
             parts.append(f"{t('less_than_minute', lang)}")
         time_str = ' '.join(parts)
 
-        pay_kb = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text=t('pay_placement_button', lang), callback_data=f"sb_paid|{slug}|{callback.from_user.id}")
-        ]])
+        price = get_placement_price(category)
+        category_display = get_category_label(category, lang)
+        await state.update_data(category=category, category_slug=slug)
 
-        await callback.message.edit_text(t('wait_cooldown', lang).format(category=category, time=time_str))
-        await callback.message.answer(t('pay_placement', lang), reply_markup=pay_kb)
-        await state.clear()
+        pay_kb = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text=t('btn_confirm_yes', lang), callback_data=f"sb_cdpay_yes|{slug}"),
+            InlineKeyboardButton(text=t('btn_confirm_no', lang), callback_data="sb_cdpay_no"),
+        ]])
+        await callback.message.edit_text(
+            t('wait_cooldown', lang).format(category=category_display, time=time_str) + "\n\n"
+            + t('cooldown_pay_offer', lang).format(
+                price=money(price, lang), balance=money(client.balance, lang)
+            ),
+            reply_markup=pay_kb,
+            parse_mode="HTML"
+        )
         return
 
-    await state.update_data(category=category, category_slug=slug)
+    await state.update_data(category=category, category_slug=slug, subcats=[])
 
-    if category == 'Недвижимость':
-        kb = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text=t('status_sell', lang), callback_data="sb_status_sell"),
-            InlineKeyboardButton(text=t('status_hand', lang), callback_data="sb_status_hand"),
-            InlineKeyboardButton(text=t('status_search', lang), callback_data="sb_status_search"),
-        ]])
-    elif category == 'Работа':
-        kb = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text=t('status_resume', lang), callback_data="sb_status_resume"),
-            InlineKeyboardButton(text=t('status_vacancy', lang), callback_data="sb_status_vacancy"),
-        ]])
-    elif category == 'Бьютимаркет':
-        kb = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text=t('status_sell', lang), callback_data="sb_status_sell"),
-            InlineKeyboardButton(text=t('status_poda', lang), callback_data="sb_status_poda"),
-            InlineKeyboardButton(text=t('status_search', lang), callback_data="sb_status_search"),
-        ]])
-    else:
-        kb = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text=t('status_sell', lang), callback_data="sb_status_sell"),
-            InlineKeyboardButton(text=t('status_exchange', lang), callback_data="sb_status_exchange"),
-            InlineKeyboardButton(text=t('status_search', lang), callback_data="sb_status_search"),
-        ]])
+    kb = build_status_keyboard(category, lang)
 
-    category_display = t(f'category_{slug}', lang)
+    category_display = get_category_label(category, lang)
 
     await callback.message.edit_reply_markup(reply_markup=None)
     await callback.message.edit_text(
-        t('choose_status', lang).format(category=category_display),
+        t('flow_start_notice', lang) + "\n\n"
+        + breadcrumbs(lang, 'status') + "\n\n"
+        + t('choose_status', lang).format(category=category_display),
         reply_markup=kb,
         parse_mode="HTML"
     )
     await state.set_state(SellFSM.status)
+
+
+@sellbuy_router.callback_query(F.data.startswith('sb_cdpay_yes|'))
+async def cooldown_pay_yes(callback: types.CallbackQuery, state: FSMContext):
+    await callback.answer()
+    _, slug = callback.data.split('|', 1)
+    category = SLUG_TO_CATEGORY.get(slug)
+    if not category:
+        return
+
+    async with async_session_maker() as session:
+        service = SellBuyService(session)
+        client = await service.get_client_by_tg(callback.from_user.id)
+        lang = client.language if client and client.language else 'ru'
+        if not client:
+            await send_not_registered(callback)
+            await state.clear()
+            return
+
+        price = get_placement_price(category)
+        charged = await ProfileService(session).try_charge(client.id, price)
+        if not charged:
+            await callback.message.edit_text(
+                t('cooldown_low_balance', lang).format(
+                    price=money(price, lang), balance=money(client.balance, lang)
+                ),
+                parse_mode="HTML"
+            )
+            await state.clear()
+            await show_menu_prompt(callback.from_user.id, callback.bot, lang)
+            return
+        await service.clear_next_ability_for_category(callback.from_user.id, slug)
+
+    await state.update_data(category=category, category_slug=slug, subcats=[])
+    kb = build_status_keyboard(category, lang)
+    await callback.message.edit_text(
+        t('cooldown_paid', lang) + "\n\n"
+        + breadcrumbs(lang, 'status') + "\n\n"
+        + t('choose_status', lang).format(category=get_category_label(category, lang)),
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
+    await state.set_state(SellFSM.status)
+
+
+@sellbuy_router.callback_query(F.data == 'sb_cdpay_no')
+async def cooldown_pay_no(callback: types.CallbackQuery, state: FSMContext):
+    async with async_session_maker() as session:
+        service = SellBuyService(session)
+        lang = await service.get_user_lang(callback.from_user.id)
+    await callback.answer()
+    await state.clear()
+    await callback.message.edit_text(t('cancel', lang))
+    await show_menu_prompt(callback.from_user.id, callback.bot, lang)
 
 @sellbuy_router.callback_query(F.data.startswith('sb_paid|'))
 async def paid_announcement(callback: types.CallbackQuery, state: FSMContext):
@@ -450,40 +527,63 @@ async def choose_status(callback: types.CallbackQuery, state: FSMContext):
 
     await callback.answer()
     data = await state.get_data()
+    category = data.get('category')
 
-    status_map = {
-        "sb_status_sell": t('status_sell', lang),
-        "sb_status_exchange": t('status_exchange', lang),
-        "sb_status_search": t('status_search', lang),
-        "sb_status_hand": t('status_hand', lang),
-        "sb_status_resume": t('status_resume', lang),
-        "sb_status_vacancy": t('status_vacancy', lang),
-        "sb_status_poda": t('status_poda', lang),
-    }
-    status = status_map.get(callback.data, t('status_sell', lang))
-    await state.update_data(status=status)
+    status_key = callback.data.removeprefix('sb_status_')
+    # Храним КЛЮЧ статуса, а не готовую подпись: подпись рендерим на языке
+    # пользователя для превью и по-русски для канала.
+    await state.update_data(status_key=status_key, subcats=[])
 
-    subcategories = CHANNELS.get(data.get('category'), {}).get('subcategories', [])
-    buttons = []
-    for subkey in subcategories:
-        sub_name = t(f'subcategory_{subkey}', lang)
-        buttons.append([InlineKeyboardButton(text=sub_name, callback_data=f"sb_subcat_{subkey}")])
-    ikb = InlineKeyboardMarkup(inline_keyboard=buttons)
-    
-    await callback.message.edit_text(t('enter_subcategory', lang).format(category=data.get('category')), reply_markup=ikb, parse_mode="HTML")
+    kb = build_subcat_keyboard(category, lang, [])
+    await callback.message.edit_text(
+        breadcrumbs(lang, 'subcategory') + "\n\n" + t('choose_subcategories', lang),
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
     await state.set_state(SellFSM.subcategory)
 
-@sellbuy_router.callback_query(F.data.startswith('sb_subcat_'))
-async def choose_subcategory(callback: types.CallbackQuery, state: FSMContext):
+
+@sellbuy_router.callback_query(SellFSM.subcategory, F.data.startswith('sb_subtog_'))
+async def toggle_subcategory(callback: types.CallbackQuery, state: FSMContext):
     async with async_session_maker() as session:
         service = SellBuyService(session)
         lang = await service.get_user_lang(callback.from_user.id)
 
-    await callback.answer()
-    subkey = callback.data.removeprefix('sb_subcat_')
-    await state.update_data(subcategory=subkey)
+    data = await state.get_data()
+    category = data.get('category')
+    selected = list(data.get('subcats', []))
+    subkey = callback.data.removeprefix('sb_subtog_')
 
-    await callback.message.edit_text(t('ad_title', lang), parse_mode="HTML")
+    if subkey in selected:
+        selected.remove(subkey)
+    else:
+        if len(selected) >= MAX_SUBCATS:
+            await callback.answer(t('subcat_max', lang).format(n=MAX_SUBCATS), show_alert=True)
+            return
+        selected.append(subkey)
+
+    await state.update_data(subcats=selected)
+    await callback.message.edit_reply_markup(reply_markup=build_subcat_keyboard(category, lang, selected))
+    await callback.answer()
+
+
+@sellbuy_router.callback_query(SellFSM.subcategory, F.data == 'sb_sub_done')
+async def subcategory_done(callback: types.CallbackQuery, state: FSMContext):
+    async with async_session_maker() as session:
+        service = SellBuyService(session)
+        lang = await service.get_user_lang(callback.from_user.id)
+
+    data = await state.get_data()
+    selected = list(data.get('subcats', []))
+    if not selected:
+        await callback.answer(t('subcat_min', lang), show_alert=True)
+        return
+
+    await callback.answer()
+    await callback.message.edit_text(
+        breadcrumbs(lang, 'name') + "\n\n" + t('ad_title', lang),
+        parse_mode="HTML"
+    )
     await state.set_state(SellFSM.name)
 
 @sellbuy_router.message(SellFSM.name)
@@ -498,7 +598,7 @@ async def get_name(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(name=message.text)
-    await message.answer(t('ad_desc', lang), parse_mode="HTML")
+    await message.answer(breadcrumbs(lang, 'desc') + "\n\n" + t('ad_desc', lang), parse_mode="HTML")
     await state.set_state(SellFSM.desc)
 
 @sellbuy_router.message(SellFSM.desc)
@@ -513,7 +613,14 @@ async def get_desc(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(desc=message.text)
-    await message.answer(t('ad_price', lang), parse_mode="HTML")
+    neg_kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=t('btn_negotiable', lang), callback_data="sb_price_neg")
+    ]])
+    await message.answer(
+        breadcrumbs(lang, 'price') + "\n\n" + t('ad_price', lang),
+        reply_markup=neg_kb,
+        parse_mode="HTML"
+    )
     await state.set_state(SellFSM.price)
 
 @sellbuy_router.message(SellFSM.price)
@@ -528,7 +635,13 @@ async def get_price(message: types.Message, state: FSMContext):
         return
 
     if not message.text:
-        return  
+        return
+
+    # «Договорная» текстом — сразу к фото, минуя выбор валюты.
+    if message.text.strip().lower() in NEGOTIABLE_WORDS:
+        await state.update_data(price=str(NEGOTIABLE_PRICE), currency='KGS', photos=[])
+        await ask_photos(message, state, lang)
+        return
 
     price_text = message.text.replace(" ", "")
     if not price_text.isdigit():
@@ -536,17 +649,48 @@ async def get_price(message: types.Message, state: FSMContext):
         return
     await state.update_data(price=price_text, photos=[])
 
-    kb = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=t('done_button', lang))], [KeyboardButton(text=t('menu_button', lang))]],
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
-    await message.answer(
-        t('add_photos', lang),
-        reply_markup=kb,
-        parse_mode="HTML"
-    )
-    await state.set_state(SellFSM.photos)
+    data = await state.get_data()
+    currencies = get_currencies(data.get('category'))
+    if len(currencies) == 1:
+        await state.update_data(currency=currencies[0])
+        await ask_photos(message, state, lang)
+    else:
+        rows = [[InlineKeyboardButton(text=cur, callback_data=f"sb_cur_{cur}")] for cur in currencies]
+        await message.answer(
+            breadcrumbs(lang, 'price') + "\n\n" + t('choose_currency', lang),
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
+            parse_mode="HTML"
+        )
+        await state.set_state(SellFSM.currency)
+
+
+@sellbuy_router.callback_query(SellFSM.price, F.data == 'sb_price_neg')
+async def price_negotiable(callback: types.CallbackQuery, state: FSMContext):
+    async with async_session_maker() as session:
+        service = SellBuyService(session)
+        lang = await service.get_user_lang(callback.from_user.id)
+
+    await callback.answer()
+    # Договорная цена — валюта не нужна, идём сразу к фото.
+    await state.update_data(price=str(NEGOTIABLE_PRICE), currency='KGS', photos=[])
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await ask_photos(callback.message, state, lang)
+
+
+@sellbuy_router.callback_query(SellFSM.currency, F.data.startswith('sb_cur_'))
+async def choose_currency(callback: types.CallbackQuery, state: FSMContext):
+    async with async_session_maker() as session:
+        service = SellBuyService(session)
+        lang = await service.get_user_lang(callback.from_user.id)
+
+    await callback.answer()
+    currency = callback.data.removeprefix('sb_cur_')
+    await state.update_data(currency=currency)
+    await callback.message.delete()
+    await ask_photos(callback.message, state, lang)
 
 @sellbuy_router.message(SellFSM.photos)
 async def get_photos(message: types.Message, state: FSMContext):
@@ -570,9 +714,8 @@ async def get_photos(message: types.Message, state: FSMContext):
         photos.append(file_id)
         await state.update_data(photos=photos)
 
-        # Клавиатура только с кнопкой "Готово" (без меню)
         kb = ReplyKeyboardMarkup(
-            keyboard=[[KeyboardButton(text=t('done_button', lang))]],
+            keyboard=[[KeyboardButton(text=t('done_button', lang))], [KeyboardButton(text=t('menu_button', lang))]],
             resize_keyboard=True
         )
         await message.answer(
@@ -591,8 +734,9 @@ async def get_photos(message: types.Message, state: FSMContext):
             InlineKeyboardButton(text=t('show_phone_yes', lang), callback_data="sb_show_phone_yes"),
             InlineKeyboardButton(text=t('show_phone_no', lang), callback_data="sb_show_phone_no")
         ]])
+        await message.answer("📸✅", reply_markup=get_main_menu_keyboard(lang))
         await message.answer(
-            t('show_phone', lang),
+            breadcrumbs(lang, 'phone') + "\n\n" + t('show_phone', lang),
             reply_markup=kb,
             parse_mode="HTML"
         )
@@ -619,26 +763,31 @@ async def choose_phone_visibility(callback: types.CallbackQuery, state: FSMConte
     await state.update_data(show_phone=show_phone)
 
     data = await state.get_data()
-    status = data.get('status', '')
-    subcategory = data.get('subcategory', '')
+    category = data.get('category')
+    status_key = data.get('status_key', '')
+    subcats = data.get('subcats', [])
     name = data.get('name', '')
     desc = data.get('desc', '')
     price = data.get('price', '')
+    currency = data.get('currency', 'KGS')
     photos = data.get('photos', []) or []
 
+    # Превью — на языке пользователя.
+    status = get_status_label(category, status_key, lang)
+    hashtags = ' '.join(f'#{s}' for s in subcats)
     phone_text = (
-        f"📱 {t('phone', lang)}: {client.phone if client and client.phone else 'Не указан'}"
+        f"📱 {t('phone', lang)}: {client.phone if client and client.phone else t('not_specified', lang)}"
         if show_phone else
         f"📱 {t('phone', lang)}: {t('hidden', lang)}"
     )
 
     text = (
-        f'<b>#{subcategory}</b>\n'
+        f'<b>{hashtags}</b>\n'
         f'<b>{client.name} | {client.tg_code}</b>\n'
         f"<b>{status}</b>\n"
         f"🏷️ <b>{name}</b>\n\n"
         f"{desc}\n\n"
-        f"💵 <b>{t('price', lang)}:</b> {price} KGS\n"
+        f"💵 {t('price', lang)}: {format_price(price, currency, lang)}\n"
         f"{phone_text}\n"
         f"✉️ <a href='tg://user?id={callback.from_user.id}'>{t('contact', lang)}</a>"
     )
@@ -684,34 +833,36 @@ async def publish_or_cancel(callback: types.CallbackQuery, state: FSMContext):
         await show_menu_prompt(callback.from_user.id, callback.bot, lang)
         return
 
-    status = data.get('status', '')
-    subcategory = data.get('subcategory', '')
+    category = data.get('category')
+    status_key = data.get('status_key', '')
+    subcats = data.get('subcats', [])
     name = data.get('name', '')
     desc = data.get('desc', '')
     price = data.get('price', '')
+    currency = data.get('currency', 'KGS')
     photos = data.get('photos', []) or []
     show_phone = data.get('show_phone', False)
 
+    # Канал — всегда по-русски.
+    status_ru = get_status_label(category, status_key, 'ru')
+    subcategory = ' '.join(subcats)
+    hashtags = ' '.join(f'#{s}' for s in subcats)
     phone_text_russian = (
         f"📱 Телефон: {client.phone if client and client.phone else 'Не указан'}"
         if show_phone else
         f"📱 Телефон: Скрыт"
     )
 
-    text_for_channel = (
-        f'<b>#{subcategory}</b>\n'
-        f'<b>{client.name} | {client.tg_code}</b>\n'
-        f"<b>{status}</b>\n"
-        f"🏷️ <b>{name}</b>\n\n"
-        f"{desc}\n\n"
-        f"💵 <b>Цена:</b> {price} KGS\n"
-        f"{phone_text_russian}\n"
-        f"✉️ <a href='tg://user?id={callback.from_user.id}'>Написать продавцу</a>\n"
-        f"📢 <a href='https://t.me/tez4917_bot'>Разместить объявление</a>"
+    owner = f"{client.name} | {client.tg_code}"
+    price_text = format_price(price, currency, 'ru')
+    text_for_channel = build_channel_caption(
+        hashtags, owner, status_ru, name, desc, price_text,
+        phone_text_russian, callback.from_user.id
     )
 
     try:
         message_id = None
+        full_message_ids = []
 
         if photos:
             sent_messages = await callback.bot.send_media_group(chan_info['id'], [
@@ -719,10 +870,15 @@ async def publish_or_cancel(callback: types.CallbackQuery, state: FSMContext):
                 for i, pid in enumerate(photos)
             ])
             if sent_messages:
-                message_id = sent_messages[0].message_id
+                full_message_ids = [
+                    msg.message_id
+                    for msg in sent_messages
+                ]
+                message_id = full_message_ids[0]
         else:
             sent_message = await callback.bot.send_message(chan_info['id'], text_for_channel, parse_mode="HTML")
             message_id = sent_message.message_id
+            full_message_ids = [message_id]
 
         channel_link = chan_info['link']
         if '/t.me/' in channel_link:
@@ -735,11 +891,50 @@ async def publish_or_cancel(callback: types.CallbackQuery, state: FSMContext):
         else:
             message_link = chan_info['link']
 
+        created_ad = None
         async with async_session_maker() as session:
             service = SellBuyService(session)
             client = await service.get_client_by_tg(callback.from_user.id)
             if client:
-                await service.set_next_ability(client.id, chan_info["cooldown_field"])
+                await service.set_next_ability(
+                    client.id,
+                    chan_info["cooldown_field"],
+                    days=get_cooldown_days(data.get('category'))
+                )
+                if message_id:
+                    created_ad = await ProfileService(session).create_ad(
+                        client_id=client.id,
+                        category_slug=data.get('category_slug', ''),
+                        subcategory_slug=subcategory,
+                        name=name,
+                        description=desc,
+                        status_label=status_ru,
+                        show_phone=show_phone,
+                        price=int(price),
+                        currency=currency,
+                        channel_id=chan_info['id'],
+                        message_id=message_id,
+                        full_message_ids=full_message_ids
+                    )
+
+        if created_ad and message_id:
+            caption_with_fav = build_channel_caption(
+                hashtags, owner, status_ru, name, desc, price_text,
+                phone_text_russian, callback.from_user.id, fav_ad_id=created_ad.id
+            )
+            try:
+                if photos:
+                    await callback.bot.edit_message_caption(
+                        chat_id=chan_info['id'], message_id=message_id,
+                        caption=caption_with_fav, parse_mode="HTML"
+                    )
+                else:
+                    await callback.bot.edit_message_text(
+                        chat_id=chan_info['id'], message_id=message_id,
+                        text=caption_with_fav, parse_mode="HTML"
+                    )
+            except Exception as e:
+                print(f"Error adding favorite link: {e}")
 
         await callback.message.edit_text(
             t('ad_published', lang),

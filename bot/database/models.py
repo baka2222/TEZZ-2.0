@@ -3,14 +3,23 @@ from datetime import datetime
 from typing import List, Optional
 from decimal import Decimal
 from sqlalchemy import (
-    String, Integer, Float, Boolean, DateTime, ForeignKey, 
-    Text, Numeric, Time, BigInteger
+    JSON, String, Integer, Float, Boolean, DateTime, ForeignKey,
+    Text, Numeric, Time, BigInteger, Table, Column
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
     pass
+
+
+client_favorites = Table(
+    "client_client_favorites",
+    Base.metadata,
+    Column("id", Integer, primary_key=True),
+    Column("client_id", ForeignKey("client_client.id")),
+    Column("clientad_id", ForeignKey("client_clientad.id")),
+)
 
 
 class Client(Base):
@@ -21,6 +30,7 @@ class Client(Base):
     name: Mapped[Optional[str]] = mapped_column(String(200))
     phone: Mapped[Optional[str]] = mapped_column(String(30))
     username: Mapped[Optional[str]] = mapped_column(String(150))
+    balance: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal('0.00'))
     language: Mapped[str] = mapped_column(String(2), default='ru')
     is_banned: Mapped[bool] = mapped_column(Boolean, default=False)
 
@@ -35,181 +45,113 @@ class Client(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    shops: Mapped[List["Shop"]] = relationship(back_populates="owner")
-    orders: Mapped[List["Order"]] = relationship(back_populates="client")
-    delivery_orders: Mapped[List["CourierOrder"]] = relationship(
-        foreign_keys="[CourierOrder.client_id]",
-        back_populates="client"
+    ads: Mapped[List["ClientAd"]] = relationship(back_populates="client")
+    favorites: Mapped[List["ClientAd"]] = relationship(
+        secondary=client_favorites,
+        back_populates="favorited_by"
     )
-    assigned_deliveries: Mapped[List["CourierOrder"]] = relationship(
-        foreign_keys="[CourierOrder.courier_id]",
-        back_populates="courier"
+    sent_transactions: Mapped[List["TeziksTransaction"]] = relationship(
+        foreign_keys="[TeziksTransaction.sender_id]",
+        back_populates="sender"
+    )
+    received_transactions: Mapped[List["TeziksTransaction"]] = relationship(
+        foreign_keys="[TeziksTransaction.receiver_id]",
+        back_populates="receiver"
     )
 
 
-class Category(Base):
-    __tablename__ = "client_category"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True)
-    name_en: Mapped[str] = mapped_column(String(100))
-    name_kg: Mapped[str] = mapped_column(String(100))
-    name_cn: Mapped[str] = mapped_column(String(100))
-    description: Mapped[Optional[str]] = mapped_column(Text)
-
-    shops: Mapped[List["Shop"]] = relationship(back_populates="category")
-
-
-class Shop(Base):
-    __tablename__ = "client_shop"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    owner_id: Mapped[int] = mapped_column(ForeignKey("client_client.id"))
-    category_id: Mapped[Optional[int]] = mapped_column(ForeignKey("client_category.id"))
-    
-    point_a_lat: Mapped[float] = mapped_column(Float)
-    point_a_lng: Mapped[float] = mapped_column(Float)
-    name: Mapped[str] = mapped_column(String(200))
-    address: Mapped[Optional[str]] = mapped_column(String(300))
-    description: Mapped[Optional[str]] = mapped_column(Text)
-    description_en: Mapped[Optional[str]] = mapped_column(Text)
-    description_kg: Mapped[Optional[str]] = mapped_column(Text)
-    description_cn: Mapped[Optional[str]] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
-    owner: Mapped["Client"] = relationship(back_populates="shops")
-    category: Mapped[Optional["Category"]] = relationship(back_populates="shops")
-    products: Mapped[List["Product"]] = relationship(back_populates="shop")
-    services: Mapped[List["Service"]] = relationship(back_populates="shop")
-    orders: Mapped[List["Order"]] = relationship(back_populates="shop")
-
-
-class Product(Base):
-    __tablename__ = "client_product"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    shop_id: Mapped[int] = mapped_column(ForeignKey("client_shop.id"))
-    name: Mapped[str] = mapped_column(String(200))
-    name_en: Mapped[Optional[str]] = mapped_column(String(200))
-    name_kg: Mapped[Optional[str]] = mapped_column(String(200))
-    name_cn: Mapped[Optional[str]] = mapped_column(String(200))
-    price: Mapped[int] = mapped_column(Integer)
-    description: Mapped[Optional[str]] = mapped_column(Text)
-    description_en: Mapped[Optional[str]] = mapped_column(Text)
-    description_kg: Mapped[Optional[str]] = mapped_column(Text)
-    description_cn: Mapped[Optional[str]] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
-    shop: Mapped["Shop"] = relationship(back_populates="products")
-    order_items: Mapped[List["OrderItem"]] = relationship(back_populates="product")
-    images: Mapped[List["ProductImage"]] = relationship(back_populates="product")
-
-
-class ProductImage(Base):
-    __tablename__ = "client_productimage"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    product_id: Mapped[int] = mapped_column(ForeignKey("client_product.id"))
-    image_url: Mapped[str] = mapped_column(String(500))
-
-    product: Mapped["Product"] = relationship(back_populates="images")
-
-
-class Service(Base):
-    __tablename__ = "client_service"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    shop_id: Mapped[int] = mapped_column(ForeignKey("client_shop.id"))
-    name: Mapped[str] = mapped_column(String(200))
-    name_en: Mapped[Optional[str]] = mapped_column(String(200))
-    name_kg: Mapped[Optional[str]] = mapped_column(String(200))
-    name_cn: Mapped[Optional[str]] = mapped_column(String(200))
-    price: Mapped[int] = mapped_column(Integer)
-    description: Mapped[Optional[str]] = mapped_column(Text)
-    description_en: Mapped[Optional[str]] = mapped_column(Text)
-    description_kg: Mapped[Optional[str]] = mapped_column(Text)
-    description_cn: Mapped[Optional[str]] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
-    shop: Mapped["Shop"] = relationship(back_populates="services")
-    order_items: Mapped[List["OrderItem"]] = relationship(back_populates="service")
-
-
-class Order(Base):
-    __tablename__ = "client_order"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    shop_id: Mapped[int] = mapped_column(ForeignKey("client_shop.id"))
-    client_id: Mapped[int] = mapped_column(ForeignKey("client_client.id"))
-    total_price: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
-    shop: Mapped["Shop"] = relationship(back_populates="orders")
-    client: Mapped["Client"] = relationship(back_populates="orders")
-    items: Mapped[List["OrderItem"]] = relationship(back_populates="order", cascade="all, delete-orphan")
-
-
-class OrderItem(Base):
-    __tablename__ = "client_orderitem"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    order_id: Mapped[int] = mapped_column(ForeignKey("client_order.id"))
-    product_id: Mapped[Optional[int]] = mapped_column(ForeignKey("client_product.id"), nullable=True)
-    service_id: Mapped[Optional[int]] = mapped_column(ForeignKey("client_service.id"), nullable=True)
-    quantity: Mapped[int] = mapped_column(Integer, default=1)
-
-    order: Mapped["Order"] = relationship(back_populates="items")
-    product: Mapped[Optional["Product"]] = relationship(back_populates="order_items")
-    service: Mapped[Optional["Service"]] = relationship(back_populates="order_items")
-
-
-class PricingRule(Base):
-    __tablename__ = "client_pricingrule"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True)
-    min_distance: Mapped[float] = mapped_column(Float, default=0)
-    max_distance: Mapped[float] = mapped_column(Float, default=0)
-    base_price: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=0)
-    per_km_price: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=0)
-    multiplier: Mapped[Decimal] = mapped_column(Numeric(4, 2), default=1)
-
-
-class TimeSurcharge(Base):
-    __tablename__ = "client_timesurcharge"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True)
-    start_time: Mapped[datetime.time] = mapped_column(Time)
-    end_time: Mapped[datetime.time] = mapped_column(Time)
-    multiplier: Mapped[Decimal] = mapped_column(Numeric(4, 2), default=1)
-
-
-class CourierOrder(Base):
-    __tablename__ = "client_courierorder"
+class ClientAd(Base):
+    __tablename__ = "client_clientad"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     client_id: Mapped[int] = mapped_column(ForeignKey("client_client.id"))
-    courier_id: Mapped[Optional[int]] = mapped_column(ForeignKey("client_client.id"))
-    
-    point_a_lat: Mapped[float] = mapped_column(Float)
-    point_a_lng: Mapped[float] = mapped_column(Float)
-    point_b_lat: Mapped[float] = mapped_column(Float)
-    point_b_lng: Mapped[float] = mapped_column(Float)
-    
-    status: Mapped[str] = mapped_column(String(20), default='new')
-    comment: Mapped[Optional[str]] = mapped_column(Text)
-    distance_km: Mapped[Optional[Decimal]] = mapped_column(Numeric(6, 2))
-    price: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2))
-    
+    category_slug: Mapped[str] = mapped_column(String(100))
+    subcategory_slug: Mapped[str] = mapped_column(String(100))
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default='')
+    status_label: Mapped[str] = mapped_column(String(100), default='')
+    show_phone: Mapped[bool] = mapped_column(Boolean, default=False)
+    price: Mapped[int] = mapped_column(Integer)
+    currency: Mapped[str] = mapped_column(String(10), default='KGS')
+    channel_id: Mapped[int] = mapped_column(BigInteger)
+    message_id: Mapped[int] = mapped_column(BigInteger)
+    full_message_ids: Mapped[List[int]] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(20), default='active')
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    client: Mapped["Client"] = relationship(
-        foreign_keys=[client_id],
-        back_populates="delivery_orders"
+    client: Mapped["Client"] = relationship(back_populates="ads")
+    favorited_by: Mapped[List["Client"]] = relationship(
+        secondary=client_favorites,
+        back_populates="favorites"
     )
-    courier: Mapped[Optional["Client"]] = relationship(
-        foreign_keys=[courier_id],
-        back_populates="assigned_deliveries"
+
+
+class TeziksTransaction(Base):
+    __tablename__ = "client_tezikstransaction"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sender_id: Mapped[Optional[int]] = mapped_column(ForeignKey("client_client.id"))
+    receiver_id: Mapped[Optional[int]] = mapped_column(ForeignKey("client_client.id"))
+    amount: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    sender: Mapped[Optional["Client"]] = relationship(
+        foreign_keys=[sender_id],
+        back_populates="sent_transactions"
     )
+    receiver: Mapped[Optional["Client"]] = relationship(
+        foreign_keys=[receiver_id],
+        back_populates="received_transactions"
+    )
+
+
+class Payment(Base):
+    __tablename__ = "payments_payment"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    client_id: Mapped[Optional[int]] = mapped_column(ForeignKey("client_client.id"))
+    tg_code: Mapped[str] = mapped_column(String(50), default='')
+    username: Mapped[str] = mapped_column(String(150), default='')
+    amount: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    method: Mapped[str] = mapped_column(String(10))  # 'ocr' | 'admin'
+    transaction_id: Mapped[str] = mapped_column(String(100), default='')
+    ocr_confidence: Mapped[Optional[float]] = mapped_column(Float)
+    receipt_datetime: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class FAQCategory(Base):
+    __tablename__ = "faq_faqcategory"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    app_type: Mapped[str] = mapped_column(String(30), default='market_bot')
+    name: Mapped[str] = mapped_column(String(100))
+    name_en: Mapped[str] = mapped_column(String(100), default='')
+    name_kg: Mapped[str] = mapped_column(String(100), default='')
+    name_cn: Mapped[str] = mapped_column(String(100), default='')
+    emoji: Mapped[str] = mapped_column(String(8), default='')
+    order: Mapped[int] = mapped_column(Integer, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    items: Mapped[List["FAQItem"]] = relationship(back_populates="category")
+
+
+class FAQItem(Base):
+    __tablename__ = "faq_faqitem"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    category_id: Mapped[int] = mapped_column(ForeignKey("faq_faqcategory.id"))
+    question: Mapped[str] = mapped_column(String(255))
+    question_en: Mapped[str] = mapped_column(String(255), default='')
+    question_kg: Mapped[str] = mapped_column(String(255), default='')
+    question_cn: Mapped[str] = mapped_column(String(255), default='')
+    answer: Mapped[str] = mapped_column(Text)
+    answer_en: Mapped[str] = mapped_column(Text, default='')
+    answer_kg: Mapped[str] = mapped_column(Text, default='')
+    answer_cn: Mapped[str] = mapped_column(Text, default='')
+    order: Mapped[int] = mapped_column(Integer, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    category: Mapped["FAQCategory"] = relationship(back_populates="items")
