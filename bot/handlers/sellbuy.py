@@ -40,6 +40,10 @@ sellbuy_router = Router()
 STEP_KEYS = ['status', 'subcategory', 'name', 'desc', 'price', 'photos', 'phone']
 MAX_SUBCATS = 2
 
+MAX_NAME_LEN = 100
+MAX_DESC_LEN = 650
+MAX_PRICE = 1_000_000_000
+
 # Цена 0 в БД = «Договорная» (без миграции схемы: поле price NOT NULL Integer).
 NEGOTIABLE_PRICE = 0
 NEGOTIABLE_WORDS = {
@@ -47,13 +51,14 @@ NEGOTIABLE_WORDS = {
     'negotiable', 'nego', '面议',
 }
 
+_publishing = set()
+
 
 def money(amount, lang: str) -> str:
     return f"{amount} {t('currency', lang)}"
 
 
 def format_price(price, currency, lang: str) -> str:
-    """Цена для показа: «Договорная» если price==0, иначе '2 500 KGS'."""
     currency = currency or 'KGS'
     try:
         value = int(price)
@@ -61,7 +66,8 @@ def format_price(price, currency, lang: str) -> str:
         value = 0
     if value == NEGOTIABLE_PRICE:
         return t('price_negotiable', lang)
-    return f"{value:,}".replace(",", " ") + f" {currency}"
+    grouped = f"{value:,}".replace(",", " ")
+    return f"<code>{grouped} {currency}</code>"
 
 
 def build_channel_caption(hashtags, owner, status_ru, name, desc, price_text,
@@ -597,6 +603,14 @@ async def get_name(message: types.Message, state: FSMContext):
         await show_menu_prompt(message.chat.id, message.bot, lang)
         return
 
+    if not message.text:
+        await message.answer(t('ad_title', lang), parse_mode="HTML")
+        return
+
+    if len(message.text) > MAX_NAME_LEN:
+        await message.answer(t('name_too_long', lang).format(max=MAX_NAME_LEN), parse_mode="HTML")
+        return
+
     await state.update_data(name=message.text)
     await message.answer(breadcrumbs(lang, 'desc') + "\n\n" + t('ad_desc', lang), parse_mode="HTML")
     await state.set_state(SellFSM.desc)
@@ -610,6 +624,14 @@ async def get_desc(message: types.Message, state: FSMContext):
     if message.text == t('menu_button', lang):
         await state.clear()
         await show_menu_prompt(message.chat.id, message.bot, lang)
+        return
+
+    if not message.text:
+        await message.answer(t('ad_desc', lang), parse_mode="HTML")
+        return
+
+    if len(message.text) > MAX_DESC_LEN:
+        await message.answer(t('desc_too_long', lang).format(max=MAX_DESC_LEN), parse_mode="HTML")
         return
 
     await state.update_data(desc=message.text)
@@ -646,6 +668,10 @@ async def get_price(message: types.Message, state: FSMContext):
     price_text = message.text.replace(" ", "")
     if not price_text.isdigit():
         await message.answer(t('price_must_be_number', lang), parse_mode="HTML")
+        return
+    if int(price_text) > MAX_PRICE:
+        max_str = f"{MAX_PRICE:,}".replace(",", " ")
+        await message.answer(t('price_too_large', lang).format(max=max_str), parse_mode="HTML")
         return
     await state.update_data(price=price_text, photos=[])
 
@@ -810,7 +836,7 @@ async def choose_phone_visibility(callback: types.CallbackQuery, state: FSMConte
     await callback.message.answer(t('ad_preview', lang), reply_markup=kb, parse_mode="HTML")
     await state.set_state(SellFSM.confirm)
 
-@sellbuy_router.callback_query(F.data.in_(['sb_confirm_send', 'sb_confirm_cancel']))
+@sellbuy_router.callback_query(SellFSM.confirm, F.data.in_(['sb_confirm_send', 'sb_confirm_cancel']))
 async def publish_or_cancel(callback: types.CallbackQuery, state: FSMContext):
     async with async_session_maker() as session:
         service = SellBuyService(session)
@@ -824,129 +850,120 @@ async def publish_or_cancel(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         return
 
-    await callback.answer(t('sending_ad', lang))
-    data = await state.get_data()
-    chan_info = CHANNELS.get(data.get('category'))
-    if not chan_info:
-        await callback.message.answer(t('channel_not_found', lang))
-        await state.clear()
-        await show_menu_prompt(callback.from_user.id, callback.bot, lang)
+    uid = callback.from_user.id
+    if uid in _publishing:
+        await callback.answer(t('publish_in_progress', lang), show_alert=True)
         return
-
-    category = data.get('category')
-    status_key = data.get('status_key', '')
-    subcats = data.get('subcats', [])
-    name = data.get('name', '')
-    desc = data.get('desc', '')
-    price = data.get('price', '')
-    currency = data.get('currency', 'KGS')
-    photos = data.get('photos', []) or []
-    show_phone = data.get('show_phone', False)
-
-    # Канал — всегда по-русски.
-    status_ru = get_status_label(category, status_key, 'ru')
-    subcategory = ' '.join(subcats)
-    hashtags = ' '.join(f'#{s}' for s in subcats)
-    phone_text_russian = (
-        f"📱 Телефон: {client.phone if client and client.phone else 'Не указан'}"
-        if show_phone else
-        f"📱 Телефон: Скрыт"
-    )
-
-    owner = f"{client.name} | {client.tg_code}"
-    price_text = format_price(price, currency, 'ru')
-    text_for_channel = build_channel_caption(
-        hashtags, owner, status_ru, name, desc, price_text,
-        phone_text_russian, callback.from_user.id
-    )
-
+    _publishing.add(uid)
     try:
-        message_id = None
-        full_message_ids = []
+        if not client:
+            await send_not_registered(callback)
+            await state.clear()
+            return
 
-        if photos:
-            sent_messages = await callback.bot.send_media_group(chan_info['id'], [
-                InputMediaPhoto(media=pid, caption=text_for_channel if i == 0 else "", parse_mode="HTML")
-                for i, pid in enumerate(photos)
-            ])
-            if sent_messages:
-                full_message_ids = [
-                    msg.message_id
-                    for msg in sent_messages
-                ]
-                message_id = full_message_ids[0]
-        else:
-            sent_message = await callback.bot.send_message(chan_info['id'], text_for_channel, parse_mode="HTML")
-            message_id = sent_message.message_id
-            full_message_ids = [message_id]
+        await callback.answer(t('sending_ad', lang))
+        data = await state.get_data()
+        chan_info = CHANNELS.get(data.get('category'))
+        if not chan_info:
+            await callback.message.answer(t('channel_not_found', lang))
+            await state.clear()
+            await show_menu_prompt(uid, callback.bot, lang)
+            return
 
-        channel_link = chan_info['link']
-        if '/t.me/' in channel_link:
-            username = channel_link.split('/t.me/')[-1].split('/')[0]
-        else:
-            username = None
+        category = data.get('category')
+        status_key = data.get('status_key', '')
+        subcats = data.get('subcats', [])
+        name = data.get('name', '')
+        desc = data.get('desc', '')
+        price = data.get('price', '')
+        currency = data.get('currency', 'KGS')
+        photos = data.get('photos', []) or []
+        show_phone = data.get('show_phone', False)
 
-        if username:
-            message_link = f"https://t.me/{username}/{message_id}"
-        else:
-            message_link = chan_info['link']
+        status_ru = get_status_label(category, status_key, 'ru')
+        subcategory = ' '.join(subcats)
+        hashtags = ' '.join(f'#{s}' for s in subcats)
+        phone_text_russian = (
+            f"📱 Телефон: {client.phone if client.phone else 'Не указан'}"
+            if show_phone else
+            "📱 Телефон: Скрыт"
+        )
+        owner = f"{client.name} | {client.tg_code}"
+        price_text = format_price(price, currency, 'ru')
 
         created_ad = None
-        async with async_session_maker() as session:
-            service = SellBuyService(session)
-            client = await service.get_client_by_tg(callback.from_user.id)
-            if client:
-                await service.set_next_ability(
-                    client.id,
-                    chan_info["cooldown_field"],
-                    days=get_cooldown_days(data.get('category'))
+        try:
+            async with async_session_maker() as session:
+                client_db = await SellBuyService(session).get_client_by_tg(uid)
+                client_id = client_db.id
+                created_ad = await ProfileService(session).create_ad(
+                    client_id=client_id,
+                    category_slug=data.get('category_slug', ''),
+                    subcategory_slug=subcategory,
+                    name=name,
+                    description=desc,
+                    status_label=status_ru,
+                    show_phone=show_phone,
+                    price=int(price),
+                    currency=currency,
+                    channel_id=chan_info['id'],
+                    message_id=0,
+                    full_message_ids=[],
                 )
-                if message_id:
-                    created_ad = await ProfileService(session).create_ad(
-                        client_id=client.id,
-                        category_slug=data.get('category_slug', ''),
-                        subcategory_slug=subcategory,
-                        name=name,
-                        description=desc,
-                        status_label=status_ru,
-                        show_phone=show_phone,
-                        price=int(price),
-                        currency=currency,
-                        channel_id=chan_info['id'],
-                        message_id=message_id,
-                        full_message_ids=full_message_ids
-                    )
+                ad_id = created_ad.id
 
-        if created_ad and message_id:
-            caption_with_fav = build_channel_caption(
+            caption = build_channel_caption(
                 hashtags, owner, status_ru, name, desc, price_text,
-                phone_text_russian, callback.from_user.id, fav_ad_id=created_ad.id
+                phone_text_russian, uid, fav_ad_id=ad_id
             )
-            try:
-                if photos:
-                    await callback.bot.edit_message_caption(
-                        chat_id=chan_info['id'], message_id=message_id,
-                        caption=caption_with_fav, parse_mode="HTML"
-                    )
-                else:
-                    await callback.bot.edit_message_text(
-                        chat_id=chan_info['id'], message_id=message_id,
-                        text=caption_with_fav, parse_mode="HTML"
-                    )
-            except Exception as e:
-                print(f"Error adding favorite link: {e}")
 
-        await callback.message.edit_text(
-            t('ad_published', lang),
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text=t('see_in_channel', lang), url=message_link)]
-            ]),
-            parse_mode="HTML"
-        )
-        await show_menu_prompt(callback.from_user.id, callback.bot, lang)
+            if photos:
+                sent_messages = await callback.bot.send_media_group(chan_info['id'], [
+                    InputMediaPhoto(media=pid, caption=caption if i == 0 else "", parse_mode="HTML")
+                    for i, pid in enumerate(photos)
+                ])
+                full_message_ids = [msg.message_id for msg in sent_messages]
+                message_id = full_message_ids[0]
+            else:
+                sent_message = await callback.bot.send_message(chan_info['id'], caption, parse_mode="HTML")
+                message_id = sent_message.message_id
+                full_message_ids = [message_id]
 
-    except Exception as e:
-        await callback.message.answer(t('publish_error', lang).format(error=str(e)))
-        print(f"Error publishing ad: {e}")
-        await state.clear()
-        await show_menu_prompt(callback.from_user.id, callback.bot, lang)
+            async with async_session_maker() as session:
+                await ProfileService(session).update_ad(
+                    ad_id, message_id=message_id, full_message_ids=full_message_ids
+                )
+                await SellBuyService(session).set_next_ability(
+                    client_id, chan_info["cooldown_field"], days=get_cooldown_days(category)
+                )
+
+            channel_link = chan_info['link']
+            if '/t.me/' in channel_link:
+                username = channel_link.split('/t.me/')[-1].split('/')[0]
+                message_link = f"https://t.me/{username}/{message_id}"
+            else:
+                message_link = chan_info['link']
+
+            await state.clear()
+            await callback.message.edit_text(
+                t('ad_published', lang),
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text=t('see_in_channel', lang), url=message_link)]
+                ]),
+                parse_mode="HTML"
+            )
+            await show_menu_prompt(uid, callback.bot, lang)
+
+        except Exception as e:
+            logger.error(f"Error publishing ad: {e}")
+            if created_ad is not None:
+                try:
+                    async with async_session_maker() as session:
+                        await ProfileService(session).delete_ad(created_ad.id)
+                except Exception as del_err:
+                    logger.error(f"Rollback failed for ad {created_ad.id}: {del_err}")
+            await callback.message.answer(t('publish_error', lang).format(error=str(e)))
+            await state.clear()
+            await show_menu_prompt(uid, callback.bot, lang)
+    finally:
+        _publishing.discard(uid)
