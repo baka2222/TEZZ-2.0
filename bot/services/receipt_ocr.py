@@ -6,6 +6,12 @@
 проверки. Модуль рассчитан на слабый сервер (~1 ГБ RAM), поэтому число
 проходов Tesseract сведено к минимуму.
 
+Основной проход — 2 варианта x 2 psm, как раньше. Если после него не удалось
+подтвердить сумму/получателя/дату — запускается ОДИН резервный проход по
+варианту изображения с удалённой цветной печатью (штампы банков, напр.
+Simbank, закрывают дату). Для чеков, которые распознаются с первого раза,
+поведение и нагрузка не меняются вообще.
+
 Публичная точка входа — verify_topup_bytes(...). Внутри бота её нужно вызывать
 через asyncio.to_thread(...), т.к. Tesseract/OpenCV блокируют поток.
 """
@@ -39,11 +45,24 @@ ANCHOR_LOOKBACK = 40
 AMOUNT_TOLERANCE = 0.01
 FUTURE_TOLERANCE_MINUTES = 5
 
+# Порог насыщенности для удаления цветных печатей/штампов (HSV).
+STAMP_SAT_THRESHOLD = 60
+STAMP_VAL_THRESHOLD = 60
+
 _MONTHS = {
     "января": 1, "февраля": 2, "марта": 3, "апреля": 4,
     "мая": 5, "июня": 6, "июля": 7, "августа": 8,
     "сентября": 9, "октября": 10, "ноября": 11, "декабря": 12,
 }
+
+# Сумма: не может начинаться внутри длинного числа или после дефиса
+# (иначе из UUID вида "a0-62a7-49cd-..." достаётся ложная сумма "49" + "c").
+# Пробел как разделитель тысяч — только между группами по 3 цифры,
+# чтобы соседние числа ("...7246 15.00 с") не склеивались в одну сумму.
+# Валютный символ не может быть началом слова ("49cd" — это не "49 сом").
+_AMOUNT_RE = re.compile(
+    r'(?<![\d-])(\d{1,3}(?:\s?\d{3})*[.,]\d{2}|\d{1,6})\s*(KGS|kgs|[сcC©€])(?![a-zA-Zа-яА-ЯёЁ\d])'
+)
 
 
 @dataclass
@@ -68,12 +87,14 @@ def _decode(image_bytes: bytes):
     return img
 
 
+def _crop_header(raw):
+    h = raw.shape[0]
+    return raw[int(h * 0.05):, :]  # срезаем шапку приложения
+
+
 def _preprocess_variants(image_bytes: bytes):
     """Лёгкий набор вариантов (2 прохода вместо 4) — экономим RAM/CPU."""
-    raw = _decode(image_bytes)
-
-    h = raw.shape[0]
-    cropped = raw[int(h * 0.05):, :]  # срезаем шапку приложения
+    cropped = _crop_header(_decode(image_bytes))
 
     gray = cv2.cvtColor(cropped, cv2.COLOR_BGR2GRAY)
     up = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
@@ -83,14 +104,36 @@ def _preprocess_variants(image_bytes: bytes):
     return [("gray", up), ("binary", binary)]
 
 
+def _preprocess_stamp_removed(image_bytes: bytes):
+    """
+    Вариант с удалённой цветной печатью: насыщенные (цветные) пиксели
+    заливаются белым — текст чека серо-чёрный и остаётся нетронутым,
+    а синие/красные штампы банков исчезают и перестают закрывать дату.
+    """
+    cropped = _crop_header(_decode(image_bytes))
+
+    hsv = cv2.cvtColor(cropped, cv2.COLOR_BGR2HSV)
+    stamp_mask = (
+        (hsv[:, :, 1] > STAMP_SAT_THRESHOLD)
+        & (hsv[:, :, 2] > STAMP_VAL_THRESHOLD)
+    )
+    clean = cropped.copy()
+    clean[stamp_mask] = (255, 255, 255)
+
+    gray = cv2.cvtColor(clean, cv2.COLOR_BGR2GRAY)
+    up = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+    return [("stamp_removed", up)]
+
+
 def _avg_conf(data: dict) -> float:
     c = [int(x) for x in data["conf"] if int(x) != -1]
     return sum(c) / len(c) if c else 0.0
 
 
-def _run_ocr(image_bytes: bytes) -> tuple[str, float]:
+def _ocr_images(variants) -> tuple[str, float]:
+    """Прогоняет готовые варианты изображения через Tesseract, берёт лучший."""
     best_text, best_conf = "", 0.0
-    for _, img in _preprocess_variants(image_bytes):
+    for _, img in variants:
         for psm in (6, 4):
             try:
                 data = pytesseract.image_to_data(
@@ -106,10 +149,18 @@ def _run_ocr(image_bytes: bytes) -> tuple[str, float]:
     return best_text, best_conf
 
 
+def _run_ocr(image_bytes: bytes) -> tuple[str, float]:
+    return _ocr_images(_preprocess_variants(image_bytes))
+
+
+def _run_ocr_stamp_removed(image_bytes: bytes) -> tuple[str, float]:
+    return _ocr_images(_preprocess_stamp_removed(image_bytes))
+
+
 def _find_amounts(text: str) -> list:
     found = []
     tl = text.lower()
-    for m in re.finditer(r'(\d[\d\s]{0,8}[.,]\d{2}|\d{1,6})\s*(KGS|kgs|[сcC©€])', text):
+    for m in _AMOUNT_RE.finditer(text):
         ctx = tl[max(0, m.start() - ANCHOR_LOOKBACK):m.start()]
         if any(b in ctx for b in BAD_ANCHORS):
             continue
@@ -189,6 +240,11 @@ def verify_topup_bytes(
     Проверяет чек из байтов. Возвращает TopupResult.
     ok=True только если: получатель верный + сумма совпала + OCR уверен +
     (если передан now) время чека свежее и не из будущего.
+
+    Если основной проход не нашёл сумму/получателя/дату (например, дата
+    закрыта печатью банка, как у Simbank), делается один резервный проход
+    по изображению с удалённой цветной печатью, и недостающие поля
+    добираются из него. Для «хороших» чеков резервный проход не запускается.
     """
     reasons: list = []
 
@@ -201,6 +257,42 @@ def verify_topup_bytes(
             delay_minutes=None, confidence=0.0, raw_text="", reasons=[str(e)],
         )
 
+    amounts = _find_amounts(text)
+    recipient_ok = _verify_recipient(text)
+    tx_id = _extract_tx_id(text)
+    receipt_dt = extract_receipt_datetime(text)
+    amount_match = any(abs(a - expected_amount) < AMOUNT_TOLERANCE for a in amounts)
+
+    # --- резервный проход (печать поверх текста и т.п.) ---
+    need_fallback = (
+        not amount_match
+        or not recipient_ok
+        or conf < MIN_CONFIDENCE
+        or (now is not None and receipt_dt is None)
+        or not text.strip()
+    )
+    if need_fallback:
+        try:
+            fb_text, fb_conf = _run_ocr_stamp_removed(image_bytes)
+        except ValueError:
+            fb_text, fb_conf = "", 0.0
+
+        if fb_text.strip():
+            fb_amounts = _find_amounts(fb_text)
+            for a in fb_amounts:
+                if a not in amounts:
+                    amounts.append(a)
+            recipient_ok = recipient_ok or _verify_recipient(fb_text)
+            if tx_id is None:
+                tx_id = _extract_tx_id(fb_text)
+            if receipt_dt is None:
+                receipt_dt = extract_receipt_datetime(fb_text)
+            conf = max(conf, fb_conf)
+            amount_match = any(
+                abs(a - expected_amount) < AMOUNT_TOLERANCE for a in amounts
+            )
+            text = (text + "\n[fallback]\n" + fb_text) if text.strip() else fb_text
+
     if not text.strip():
         return TopupResult(
             ok=False, expected_amount=expected_amount, found_amounts=[],
@@ -208,12 +300,6 @@ def verify_topup_bytes(
             delay_minutes=None, confidence=conf, raw_text="",
             reasons=["OCR вернул пустой текст"],
         )
-
-    amounts = _find_amounts(text)
-    recipient_ok = _verify_recipient(text)
-    tx_id = _extract_tx_id(text)
-    receipt_dt = extract_receipt_datetime(text)
-    amount_match = any(abs(a - expected_amount) < AMOUNT_TOLERANCE for a in amounts)
 
     if not recipient_ok:
         reasons.append("получатель не подтверждён")

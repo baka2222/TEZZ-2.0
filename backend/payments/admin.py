@@ -3,7 +3,7 @@ import io
 from datetime import timedelta
 
 from django.contrib import admin
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, DateTimeField, ExpressionWrapper, F
 from django.db.models.functions import TruncDate
 from django.http import HttpResponse
 from django.shortcuts import render
@@ -14,16 +14,26 @@ from django.utils.html import format_html
 from .models import Payment
 
 
+BISHKEK_SHIFT = timedelta(hours=6)
+
+
 def _range_totals(qs):
     agg = qs.aggregate(total=Sum('amount'), cnt=Count('id'))
     return agg['total'] or 0, agg['cnt'] or 0
 
 
+def _bishkek_today_start():
+    """Начало текущих суток по Бишкеку (UTC+6), возвращается в UTC."""
+    now_local = timezone.now() + BISHKEK_SHIFT
+    local_midnight = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    return local_midnight - BISHKEK_SHIFT
+
+
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
     list_display = (
-        'created_at', 'amount', 'method_badge', 'client_col',
-        'tg_code', 'transaction_id', 'ocr_confidence', 'receipt_datetime',
+        'created_at_display', 'amount', 'method_badge', 'client_col',
+        'tg_code', 'transaction_id', 'ocr_confidence', 'receipt_datetime_display',
     )
     list_filter = ('method', 'created_at')
     search_fields = ('tg_code', 'username', 'transaction_id', 'client__name')
@@ -33,6 +43,20 @@ class PaymentAdmin(admin.ModelAdmin):
     change_list_template = 'admin/payments/payment_changelist.html'
 
     # ---------- Колонки списка ----------
+
+    @admin.display(description='Принято (Бишкек)', ordering='created_at')
+    def created_at_display(self, obj):
+        if obj.created_at:
+            return (obj.created_at + BISHKEK_SHIFT).strftime('%d.%m.%Y %H:%M:%S')
+        return '—'
+
+    @admin.display(description='Дата чека (Бишкек)', ordering='receipt_datetime')
+    def receipt_datetime_display(self, obj):
+        # receipt_datetime парсится напрямую с текста чека (receipt_ocr.py) —
+        # там уже местное бишкекское время, сдвигать повторно не нужно
+        if obj.receipt_datetime:
+            return obj.receipt_datetime.strftime('%d.%m.%Y %H:%M:%S')
+        return '—'
 
     @admin.display(description='Как принято', ordering='method')
     def method_badge(self, obj):
@@ -52,8 +76,7 @@ class PaymentAdmin(admin.ModelAdmin):
     # ---------- Сводка над списком ----------
 
     def _summary(self):
-        now = timezone.localtime()
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_start = _bishkek_today_start()
         week_start = today_start - timedelta(days=7)
         month_start = today_start - timedelta(days=30)
 
@@ -101,17 +124,19 @@ class PaymentAdmin(admin.ModelAdmin):
         matplotlib.use('Agg')
         import matplotlib.pyplot as plt
 
-        now = timezone.localtime()
-        today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today = _bishkek_today_start()
         start = today - timedelta(days=days - 1)
 
         rows = (
             Payment.objects.filter(created_at__gte=start)
-            .annotate(d=TruncDate('created_at'))
+            .annotate(local_dt=ExpressionWrapper(
+                F('created_at') + BISHKEK_SHIFT, output_field=DateTimeField()))
+            .annotate(d=TruncDate('local_dt'))
             .values('d').annotate(s=Sum('amount')).order_by('d')
         )
         per_day = {r['d']: float(r['s'] or 0) for r in rows}
-        labels = [(start + timedelta(days=i)).date() for i in range(days)]
+        labels = [(start + BISHKEK_SHIFT + timedelta(days=i)).date()
+                  for i in range(days)]
         values = [per_day.get(day, 0.0) for day in labels]
 
         fig, ax = plt.subplots(figsize=(11, 4))
@@ -148,13 +173,13 @@ class PaymentAdmin(admin.ModelAdmin):
         ws = wb.active
         ws.title = 'Платежи'
         ws.append([
-            'Принято', 'Сумма', 'Как принято', 'Клиент',
+            'Принято (Бишкек)', 'Сумма', 'Как принято', 'Клиент',
             'Telegram ID', 'Юзернейм', 'ID транзакции',
-            'Уверенность OCR, %', 'Дата чека',
+            'Уверенность OCR, %', 'Дата чека (Бишкек)',
         ])
         for p in qs.order_by('-created_at'):
             ws.append([
-                timezone.localtime(p.created_at).strftime('%d.%m.%Y %H:%M'),
+                (p.created_at + BISHKEK_SHIFT).strftime('%d.%m.%Y %H:%M'),
                 float(p.amount),
                 p.get_method_display(),
                 (p.client.name if p.client else '') or p.username or p.tg_code,
@@ -162,7 +187,7 @@ class PaymentAdmin(admin.ModelAdmin):
                 p.username,
                 p.transaction_id,
                 p.ocr_confidence if p.ocr_confidence is not None else '',
-                (timezone.localtime(p.receipt_datetime).strftime('%d.%m.%Y %H:%M')
+                (p.receipt_datetime.strftime('%d.%m.%Y %H:%M')
                  if p.receipt_datetime else ''),
             ])
         buf = io.BytesIO()
@@ -180,13 +205,15 @@ class PaymentAdmin(admin.ModelAdmin):
         return resp
 
     def export_excel(self, request):
-        qs = Payment.objects.all()
+        # Даты в фильтре админ вводит по Бишкеку — сравниваем со сдвинутым временем
+        qs = Payment.objects.annotate(local_dt=ExpressionWrapper(
+            F('created_at') + BISHKEK_SHIFT, output_field=DateTimeField()))
         date_from = request.GET.get('from')
         date_to = request.GET.get('to')
         if date_from:
-            qs = qs.filter(created_at__date__gte=date_from)
+            qs = qs.filter(local_dt__date__gte=date_from)
         if date_to:
-            qs = qs.filter(created_at__date__lte=date_to)
+            qs = qs.filter(local_dt__date__lte=date_to)
         return self._xlsx_response(self._build_workbook(qs), 'payments.xlsx')
 
     @admin.action(description='📥 Экспорт выбранных в Excel')
