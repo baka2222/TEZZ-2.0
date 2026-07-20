@@ -67,7 +67,7 @@ def format_price(price, currency, lang: str) -> str:
     if value == NEGOTIABLE_PRICE:
         return t('price_negotiable', lang)
     grouped = f"{value:,}".replace(",", " ")
-    return f"<code>{grouped} {currency}</code>"
+    return f"{grouped} {currency}"
 
 
 def build_channel_caption(hashtags, owner, status_ru, name, desc, price_text,
