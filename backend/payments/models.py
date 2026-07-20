@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 
 class Payment(models.Model):
@@ -39,7 +40,8 @@ class Payment(models.Model):
     receipt_datetime = models.DateTimeField(
         'Дата/время на чеке', null=True, blank=True
     )
-    created_at = models.DateTimeField('Принято', auto_now_add=True, db_index=True)
+    # default вместо auto_now_add — чтобы поле можно было править в админке
+    created_at = models.DateTimeField('Принято', default=timezone.now, db_index=True)
 
     class Meta:
         verbose_name = 'Платёж'

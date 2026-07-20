@@ -2,6 +2,7 @@ import base64
 import io
 from datetime import timedelta
 
+from django import forms
 from django.contrib import admin
 from django.db.models import Sum, Count, DateTimeField, ExpressionWrapper, F
 from django.db.models.functions import TruncDate
@@ -29,8 +30,33 @@ def _bishkek_today_start():
     return local_midnight - BISHKEK_SHIFT
 
 
+class PaymentForm(forms.ModelForm):
+    """created_at в форме — по Бишкеку (UTC+6), в БД уходит в UTC."""
+
+    class Meta:
+        model = Payment
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        f = self.fields['created_at']
+        f.label = f'{f.label} (Бишкек время)'
+        f.help_text = 'Время по Бишкеку (UTC+6). При сохранении переведётся в UTC.'
+        val = getattr(self.instance, 'created_at', None)
+        if val:
+            self.initial['created_at'] = val + BISHKEK_SHIFT
+        else:
+            self.initial['created_at'] = timezone.now() + BISHKEK_SHIFT
+
+    def clean_created_at(self):
+        val = self.cleaned_data.get('created_at')
+        # Бишкек → UTC
+        return val - BISHKEK_SHIFT if val else val
+
+
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
+    form = PaymentForm
     list_display = (
         'created_at_display', 'amount', 'method_badge', 'client_col',
         'tg_code', 'transaction_id', 'ocr_confidence', 'receipt_datetime_display',
