@@ -1094,7 +1094,7 @@ async def start_replenish(callback: types.CallbackQuery, state: FSMContext):
             await callback.answer()
             return
     await state.clear()
-    text = t('replenish_choose', lang) + "\n\n" + t('replenish_warning', lang)
+    text = t('replenish_choose', lang)
     await callback.message.edit_text(text, reply_markup=replenish_amount_kb(lang), parse_mode="HTML")
     await callback.answer()
 

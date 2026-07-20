@@ -2274,10 +2274,10 @@ TRANSLATIONS = {
         'cn': '💳 请选择充值金额：',
     },
     'replenish_warning': {
-        'ru': '⚠️ <b>Важно:</b>\n-Отправьте <b>ровно выбранную сумму</b>. Если сумма не совпадёт, тезики могут не начислиться.\n-НИЧЕГО НЕ НАЖИМАЯ, скиньте фото или скрин чека сюда, иначе бот СЕЙЧАС ожидает фото.',
-        'kg': '⚠️ <b>Маанилүү:</b>\n-Тандалган <b>так сумманы</b> жөнөтүңүз. Эгер сумма дал келбесе, тезиктер эсепке түшпөй калышы мүмкүн.\n-ЭЧ НЕРСЕНИ БАСБАЙ, чектин сүрөтүн же скриншотун ушул жерге жөнөтүңүз, болбосо бот АЗЫР сүрөт күтүп жатат.',
-        'en': '⚠️ <b>Important:</b>\n-Send <b>exactly the selected amount</b>. If the amount does not match, teziks may not be credited.\n-DO NOT CLICK ANYTHING, just send a photo or screenshot of the receipt here, otherwise the bot is CURRENTLY waiting for the photo.',
-        'cn': '⚠️ <b>重要：</b>\n-请发送<b>准确选择的金额</b>。如果金额不匹配，积分可能无法到账。\n-请不要点击任何按钮，只需将付款收据照片或截图发送到这里，否则机器人正在等待照片。',
+        'ru': '⚠️ <b>Важно:</b>\n-Отправьте <b>ровно выбранную сумму</b>. Если сумма не совпадёт, тезики могут не начислиться.\n-НИЧЕГО НЕ НАЖИМАЯ, скиньте фото или скрин чека сюда, бот СЕЙЧАС ожидает фото.',
+        'kg': '⚠️ <b>Маанилүү:</b>\n-Тандалган <b>так сумманы</b> жөнөтүңүз. Эгер сумма дал келбесе, тезиктер эсепке түшпөй калышы мүмкүн.\n-ЭЧ НЕРСЕНИ БАСБАЙ, чектин сүрөтүн же скриншотун ушул жерге жөнөтүңүз, бот АЗЫР сүрөт күтүп жатат.',
+        'en': '⚠️ <b>Important:</b>\n-Send <b>exactly the selected amount</b>. If the amount does not match, teziks may not be credited.\n-DO NOT CLICK ANYTHING, just send a photo or screenshot of the receipt here, the bot is CURRENTLY waiting for the photo.',
+        'cn': '⚠️ <b>重要：</b>\n-请发送<b>准确选择的金额</b>。如果金额不匹配，积分可能无法到账。\n-请不要点击任何按钮，只需将付款收据照片或截图发送到这里，机器人正在等待照片。',
     },
     'replenish_instruction': {
         'ru': '💳 Пополнение на <b>{amount}</b>.\n\nОплатите на MBank и отправьте фото чека сюда.',
