@@ -8,8 +8,9 @@ class User(AbstractUser):
         ('student', 'Student'),
         ('teacher', 'Teacher'),
         ('admin', 'Admin'),
+        ('store_owner', 'StoreOwner')
     )
-    role = models.CharField(max_length=10, choices=ROLES, default='student')
+    role = models.CharField(max_length=20, choices=ROLES, default='student')
     telegram = models.CharField(max_length=100, blank=True, null=True)
     discord = models.CharField(max_length=100, blank=True, null=True)
 

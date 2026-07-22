@@ -1,25 +1,29 @@
-# Stage 1: build frontend
-FROM node:20 AS build
+# --- Stage 1: зависимости ---
+FROM node:20-alpine AS deps
 WORKDIR /app
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
 
-# Копируем package.json + package-lock (если есть)
-COPY frontend/package*.json ./
-
-# Установим зависимости (dev тоже)
-RUN npm ci --legacy-peer-deps --unsafe-perm=true
-
-# Копируем исходники фронта
+# --- Stage 2: сборка ---
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY frontend/ ./
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
 
-# Исправим права бинари и соберём
-RUN if [ -d node_modules/.bin ]; then chmod -R a+rx node_modules/.bin || true; fi
-RUN npx vite build
+# --- Stage 3: рантайм (standalone) ---
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 
-# Stage 2: nginx serve static + proxy
-FROM nginx:1.27-alpine
-# Копируем наш nginx-конфиг (deploy/nginx/default.conf)
-COPY deploy/nginx/default.conf /etc/nginx/conf.d/default.conf
-# Копируем собранный фронт
-COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+# next build --output standalone кладёт готовый мини-сервер + node_modules
+COPY --from=build /app/.next/standalone ./
+COPY --from=build /app/.next/static ./.next/static
+COPY --from=build /app/public ./public
+
+EXPOSE 3000
+CMD ["node", "server.js"]

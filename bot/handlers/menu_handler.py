@@ -97,6 +97,12 @@ async def show_menu_prompt(chat_id: int, bot, lang: str) -> None:
     )
 
 
+#TODO Delete this later
+@common_router.callback_query(F.data.in_(['stores', 'delivery']))
+async def fhjfbfkds(cb: types.CallbackQuery):
+    await cb.answer('В разработке...')
+
+
 @common_router.message(F.text.in_([t('menu_button', lang) for lang in ['ru', 'kg', 'en', 'cn']]))
 async def cmd_main_menu(message: types.Message, state: FSMContext):
     async with async_session_maker() as session:

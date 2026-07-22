@@ -61,12 +61,24 @@ services:
     depends_on:
       - django
 
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: always
+    environment:
+      - NODE_ENV=production
+    expose:
+      - "3000"
+    depends_on:
+      - django
+
   nginx:
     image: nginx:stable-alpine
     volumes:
       - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./frontend/build:/usr/share/nginx/html:ro
       - static_volume:/usr/share/nginx/static:ro
+      - ./backend/media:/usr/share/nginx/media:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - /var/www/certbot:/var/www/certbot:ro
     ports:
@@ -74,6 +86,7 @@ services:
       - "443:443"
     depends_on:
       - django
+      - frontend
 
 volumes:
   postgres_data:

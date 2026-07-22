@@ -3,6 +3,8 @@ from conf import bot, dp
 from handlers.commands import commands_router
 from handlers.sellbuy import sellbuy_router
 from aiogram.types import BotCommand
+from aiogram import F
+from aiogram.enums import ChatType
 from handlers.sell_buy_admin import admin_sell_router
 from handlers.menu_handler import common_router
 from bot.database.session import scheduler
@@ -21,6 +23,8 @@ async def set_commands(bot):
 
 async def main():
     await set_commands(bot)
+    for r in (common_router, commands_router, sellbuy_router, admin_sell_router, profile_router, faq_router):
+        r.message.filter(F.chat.type == ChatType.PRIVATE)
     dp.include_router(common_router)
     dp.include_router(commands_router)
     dp.include_router(sellbuy_router)
