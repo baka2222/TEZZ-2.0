@@ -134,6 +134,33 @@ def build_subcat_keyboard(category: str, lang: str, selected: list) -> InlineKey
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+async def ask_price(target, state: FSMContext, lang: str):
+    neg_kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=t('btn_negotiable', lang), callback_data="sb_price_neg")
+    ]])
+    await target.answer(
+        breadcrumbs(lang, 'price') + "\n\n" + t('ad_price', lang),
+        reply_markup=neg_kb,
+        parse_mode="HTML"
+    )
+    await state.set_state(SellFSM.price)
+
+
+async def ask_currency_or_price(target, state: FSMContext, lang: str, category: str):
+    currencies = get_currencies(category)
+    if len(currencies) == 1:
+        await state.update_data(currency=currencies[0])
+        await ask_price(target, state, lang)
+    else:
+        rows = [[InlineKeyboardButton(text=cur, callback_data=f"sb_cur_{cur}")] for cur in currencies]
+        await target.answer(
+            breadcrumbs(lang, 'price') + "\n\n" + t('choose_currency', lang),
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
+            parse_mode="HTML"
+        )
+        await state.set_state(SellFSM.currency)
+
+
 async def ask_photos(target, state: FSMContext, lang: str):
     kb = ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text=t('done_button', lang))], [KeyboardButton(text=t('menu_button', lang))]],
@@ -635,15 +662,7 @@ async def get_desc(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(desc=message.text)
-    neg_kb = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text=t('btn_negotiable', lang), callback_data="sb_price_neg")
-    ]])
-    await message.answer(
-        breadcrumbs(lang, 'price') + "\n\n" + t('ad_price', lang),
-        reply_markup=neg_kb,
-        parse_mode="HTML"
-    )
-    await state.set_state(SellFSM.price)
+    await ask_currency_or_price(message, state, lang, (await state.get_data()).get('category'))
 
 @sellbuy_router.message(SellFSM.price)
 async def get_price(message: types.Message, state: FSMContext):
@@ -659,9 +678,9 @@ async def get_price(message: types.Message, state: FSMContext):
     if not message.text:
         return
 
-    # «Договорная» текстом — сразу к фото, минуя выбор валюты.
+    # «Договорная» текстом — валюта уже выбрана ранее, идём к фото.
     if message.text.strip().lower() in NEGOTIABLE_WORDS:
-        await state.update_data(price=str(NEGOTIABLE_PRICE), currency='KGS', photos=[])
+        await state.update_data(price=str(NEGOTIABLE_PRICE), photos=[])
         await ask_photos(message, state, lang)
         return
 
@@ -674,20 +693,7 @@ async def get_price(message: types.Message, state: FSMContext):
         await message.answer(t('price_too_large', lang).format(max=max_str), parse_mode="HTML")
         return
     await state.update_data(price=price_text, photos=[])
-
-    data = await state.get_data()
-    currencies = get_currencies(data.get('category'))
-    if len(currencies) == 1:
-        await state.update_data(currency=currencies[0])
-        await ask_photos(message, state, lang)
-    else:
-        rows = [[InlineKeyboardButton(text=cur, callback_data=f"sb_cur_{cur}")] for cur in currencies]
-        await message.answer(
-            breadcrumbs(lang, 'price') + "\n\n" + t('choose_currency', lang),
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
-            parse_mode="HTML"
-        )
-        await state.set_state(SellFSM.currency)
+    await ask_photos(message, state, lang)
 
 
 @sellbuy_router.callback_query(SellFSM.price, F.data == 'sb_price_neg')
@@ -697,8 +703,8 @@ async def price_negotiable(callback: types.CallbackQuery, state: FSMContext):
         lang = await service.get_user_lang(callback.from_user.id)
 
     await callback.answer()
-    # Договорная цена — валюта не нужна, идём сразу к фото.
-    await state.update_data(price=str(NEGOTIABLE_PRICE), currency='KGS', photos=[])
+    # Договорная цена — валюта уже выбрана ранее, идём к фото.
+    await state.update_data(price=str(NEGOTIABLE_PRICE), photos=[])
     try:
         await callback.message.edit_reply_markup(reply_markup=None)
     except Exception:
@@ -716,7 +722,7 @@ async def choose_currency(callback: types.CallbackQuery, state: FSMContext):
     currency = callback.data.removeprefix('sb_cur_')
     await state.update_data(currency=currency)
     await callback.message.delete()
-    await ask_photos(callback.message, state, lang)
+    await ask_price(callback.message, state, lang)
 
 @sellbuy_router.message(SellFSM.photos)
 async def get_photos(message: types.Message, state: FSMContext):
